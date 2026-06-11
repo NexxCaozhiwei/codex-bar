@@ -1,0 +1,14 @@
+<Application x:Class="CodexBar.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Startup="OnStartup"
+             Exit="OnExit"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <SolidColorBrush x:Key="PanelBrush" Color="#E61B1D24" />
+        <SolidColorBrush x:Key="TextBrush" Color="#F4F7FB" />
+        <SolidColorBrush x:Key="MutedBrush" Color="#9DA7B3" />
+        <SolidColorBrush x:Key="TrackBrush" Color="#333842" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#2FBF71" />
+    </Application.Resources>
+</Application>

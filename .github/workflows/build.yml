@@ -1,0 +1,27 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore
+      - name: Build
+        run: dotnet build -c Release --no-restore
+      - name: Test
+        run: dotnet test -c Release --no-build
+      - name: Publish
+        run: dotnet publish src/CodexBar/CodexBar.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -o artifacts/publish/win-x64
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodexBar-win-x64
+          path: artifacts/publish/win-x64/

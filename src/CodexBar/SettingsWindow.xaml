@@ -1,0 +1,55 @@
+<Window x:Class="CodexBar.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Codex Bar Settings"
+        Width="460"
+        Height="390"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#1B1D24">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock Text="Settings" FontSize="18" FontWeight="SemiBold" Foreground="#F4F7FB" />
+        <Grid Grid.Row="1" Margin="0,16,0,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="42" />
+                <RowDefinition Height="34" />
+                <RowDefinition Height="34" />
+                <RowDefinition Height="34" />
+                <RowDefinition Height="34" />
+                <RowDefinition Height="42" />
+                <RowDefinition Height="42" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Text="Codex path" Foreground="#9DA7B3" VerticalAlignment="Center" />
+            <TextBox x:Name="CodexPathBox" Grid.Column="1" Height="26" VerticalContentAlignment="Center" />
+
+            <CheckBox x:Name="StartupBox" Grid.Row="1" Grid.ColumnSpan="2" Content="Start with Windows" Foreground="#F4F7FB" />
+            <CheckBox x:Name="TopMostBox" Grid.Row="2" Grid.ColumnSpan="2" Content="Top most" Foreground="#F4F7FB" />
+            <CheckBox x:Name="LockPositionBox" Grid.Row="3" Grid.ColumnSpan="2" Content="Lock position" Foreground="#F4F7FB" />
+            <CheckBox x:Name="AutoDockBox" Grid.Row="4" Grid.ColumnSpan="2" Content="Auto dock near taskbar" Foreground="#F4F7FB" />
+
+            <TextBlock Grid.Row="5" Text="Refresh seconds" Foreground="#9DA7B3" VerticalAlignment="Center" />
+            <TextBox x:Name="RefreshBox" Grid.Row="5" Grid.Column="1" Height="26" VerticalContentAlignment="Center" />
+
+            <TextBlock Grid.Row="6" Text="Language" Foreground="#9DA7B3" VerticalAlignment="Center" />
+            <ComboBox x:Name="LanguageBox" Grid.Row="6" Grid.Column="1" Height="26">
+                <ComboBoxItem Content="en" />
+                <ComboBoxItem Content="zh" />
+            </ComboBox>
+        </Grid>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Width="92" Height="30" Margin="0,0,8,0" Content="Defaults" Click="OnDefaults" />
+            <Button Width="82" Height="30" Margin="0,0,8,0" Content="Cancel" IsCancel="True" />
+            <Button Width="82" Height="30" Content="Save" Click="OnSave" />
+        </StackPanel>
+    </Grid>
+</Window>
