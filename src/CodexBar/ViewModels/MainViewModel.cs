@@ -110,8 +110,15 @@ public sealed class MainViewModel : ObservableObject
     public void AttachWindow(Window window)
     {
         _mainWindow = window;
-        _dockingService.Apply(window, Settings);
         ConfigureTimer();
+    }
+
+    public void ApplyWindowPlacement()
+    {
+        if (_mainWindow is not null)
+        {
+            _dockingService.Apply(_mainWindow, Settings);
+        }
     }
 
     public async Task RefreshAsync()

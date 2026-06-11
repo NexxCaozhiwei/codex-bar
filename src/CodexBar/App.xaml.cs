@@ -42,6 +42,8 @@ public partial class App : System.Windows.Application
         var viewModel = _host.Services.GetRequiredService<MainViewModel>();
 
         tray.Initialize(window, viewModel);
+        window.Show();
+        viewModel.ApplyWindowPlacement();
         ShowMainWindow(window, viewModel.Settings.TopMost);
         await viewModel.RefreshAsync();
     }
