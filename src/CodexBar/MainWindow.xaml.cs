@@ -37,12 +37,12 @@ public partial class MainWindow : Window
     private void OnMouseRightButtonUp(object sender, MouseButtonEventArgs e)
     {
         var menu = new ContextMenu();
-        menu.Items.Add(MenuItem("Show Details", (_, _) => _viewModel.ShowDetails()));
-        menu.Items.Add(MenuItem("Refresh", async (_, _) => await _viewModel.RefreshAsync()));
-        menu.Items.Add(MenuItem("Settings", (_, _) => _viewModel.ShowSettings()));
+        menu.Items.Add(MenuItem("查看详情", (_, _) => _viewModel.ShowDetails()));
+        menu.Items.Add(MenuItem("刷新", async (_, _) => await _viewModel.RefreshAsync()));
+        menu.Items.Add(MenuItem("设置", (_, _) => _viewModel.ShowSettings()));
         menu.Items.Add(new Separator());
-        menu.Items.Add(MenuItem("Dock", (_, _) => _viewModel.DockNow()));
-        menu.Items.Add(MenuItem("Exit", (_, _) => System.Windows.Application.Current.Shutdown()));
+        menu.Items.Add(MenuItem("吸附到任务栏附近", (_, _) => _viewModel.DockNow()));
+        menu.Items.Add(MenuItem("退出", (_, _) => System.Windows.Application.Current.Shutdown()));
         menu.IsOpen = true;
     }
 

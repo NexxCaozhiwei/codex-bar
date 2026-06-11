@@ -16,6 +16,6 @@ public sealed class CodexLocatorTests
         var result = await locator.LocateAsync(@"Z:\definitely-not-installed\codex.exe");
 
         Assert.False(result.Found);
-        Assert.Contains("Codex CLI was not found", result.Error);
+        Assert.Contains("未找到 Codex CLI", result.Error);
     }
 }

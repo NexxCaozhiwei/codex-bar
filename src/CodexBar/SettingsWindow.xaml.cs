@@ -24,7 +24,7 @@ public partial class SettingsWindow : Window
         _viewModel.Settings.LockPosition = LockPositionBox.IsChecked == true;
         _viewModel.Settings.AutoDockToTaskbar = AutoDockBox.IsChecked == true;
         _viewModel.Settings.RefreshIntervalSeconds = int.TryParse(RefreshBox.Text, out var seconds) ? seconds : 15;
-        _viewModel.Settings.Language = ((ComboBoxItem?)LanguageBox.SelectedItem)?.Content?.ToString() ?? "en";
+        _viewModel.Settings.Language = ((ComboBoxItem?)LanguageBox.SelectedItem)?.Tag?.ToString() ?? "zh";
         _viewModel.SaveSettings();
         Close();
     }
@@ -42,6 +42,6 @@ public partial class SettingsWindow : Window
         LockPositionBox.IsChecked = settings.LockPosition;
         AutoDockBox.IsChecked = settings.AutoDockToTaskbar;
         RefreshBox.Text = settings.RefreshIntervalSeconds.ToString();
-        LanguageBox.SelectedIndex = settings.Language.Equals("zh", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        LanguageBox.SelectedIndex = settings.Language.Equals("en", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
     }
 }

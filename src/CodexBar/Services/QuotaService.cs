@@ -22,7 +22,7 @@ public sealed class QuotaService
         _logger = logger;
     }
 
-    public CodexLocationResult LastLocation { get; private set; } = new(null, "Not checked yet.");
+    public CodexLocationResult LastLocation { get; private set; } = new(null, "尚未检查。");
 
     public async Task<QuotaSnapshot> ReadAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
@@ -40,7 +40,7 @@ public sealed class QuotaService
                 return appServer;
             }
 
-            _logger.LogInformation("Falling back to session jsonl after app-server result: {Error}", appServer.Error);
+            _logger.LogInformation("app-server 返回后回退到 session jsonl：{Error}", appServer.Error);
         }
 
         var fallback = await _sessionLogReader.ReadLatestQuotaAsync(appServerAttemptTime, cancellationToken).ConfigureAwait(false);
@@ -49,6 +49,6 @@ public sealed class QuotaService
             return fallback;
         }
 
-        return QuotaSnapshot.Empty(LastLocation.Error ?? fallback.Error ?? "No quota data available.");
+        return QuotaSnapshot.Empty(LastLocation.Error ?? fallback.Error ?? "没有可用的额度数据。");
     }
 }

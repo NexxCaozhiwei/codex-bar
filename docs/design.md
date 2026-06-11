@@ -1,27 +1,27 @@
-# Codex Bar Design
+# Codex Bar 设计
 
-Codex Bar uses a Windows-native WPF shell with MVVM-style view models and small services for data access. The default UI is a borderless floating window positioned near the taskbar notification area. It does not inject into Explorer or modify the Windows taskbar.
+Codex Bar 使用 Windows 原生 WPF 外壳，并用接近 MVVM 的方式组织视图模型和服务。默认界面是一个贴近任务栏通知区域的无边框悬浮窗口。它不会注入 Explorer，也不会修改 Windows 任务栏。
 
-## Components
+## 组件
 
-- `MainWindow`: compact three-row status bar.
-- `DetailsWindow`: quota and diagnostics view.
-- `SettingsWindow`: user settings editor.
-- `MainViewModel`: refresh orchestration and display properties.
-- `QuotaService`: app-server first, jsonl fallback second.
-- `CodexActivityDetector`: recent session event classification.
-- `TrayService`: Windows Forms `NotifyIcon` integration.
-- `StartupService`: current-user startup registration.
-- `WindowDockingService`: taskbar-adjacent placement.
+- `MainWindow`：三行紧凑状态条。
+- `DetailsWindow`：额度和诊断详情。
+- `SettingsWindow`：用户设置编辑。
+- `MainViewModel`：刷新调度和界面显示属性。
+- `QuotaService`：优先 app-server，失败后回退 jsonl。
+- `CodexActivityDetector`：最近 session 事件分类。
+- `TrayService`：Windows Forms `NotifyIcon` 托盘集成。
+- `StartupService`：当前用户开机启动注册。
+- `WindowDockingService`：任务栏附近定位。
 
-## Status Mapping
+## 状态映射
 
-- `Idle`: red light.
-- `Working` and `AutoReviewing`: green light.
-- `Completed`: blue light.
-- `WaitingForUser`: green/yellow text prompt.
-- `Unknown` and `Error`: diagnostic text in details.
+- `Idle`：红灯。
+- `Working` 和 `AutoReviewing`：绿灯。
+- `Completed`：蓝灯。
+- `WaitingForUser`：绿色灯并显示等待说明。
+- `Unknown` 和 `Error`：在详情中显示诊断文本。
 
-## Taskbar Strategy
+## 任务栏策略
 
-The stable default is a floating tool window near the taskbar. `AppBarInterop` exists for future experimental docking, but it is not enabled by default because Windows Shell AppBars are edge-reserved application bars, not taskbar embeddings.
+稳定默认模式是任务栏附近悬浮窗口。`AppBarInterop` 仅为后续实验性 docking 保留，因为 Windows Shell AppBar 是屏幕边缘应用栏，不等于嵌入任务栏。

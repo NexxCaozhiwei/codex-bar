@@ -33,7 +33,7 @@ public sealed class CodexAppServerClient : IDisposable
             {
                 await SendRequestAsync("initialize", new
                 {
-                    clientInfo = new { name = "codex-bar", title = "Codex Bar", version = "0.1.1" },
+                    clientInfo = new { name = "codex-bar", title = "Codex Bar", version = "0.1.2" },
                     capabilities = new { experimentalApi = true, optOutNotificationMethods = Array.Empty<string>() }
                 }, timeoutCts.Token).ConfigureAwait(false);
                 _initialized = true;
@@ -45,9 +45,9 @@ public sealed class CodexAppServerClient : IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException || cancellationToken.IsCancellationRequested == false)
         {
-            _logger.LogWarning(ex, "Codex app-server quota read failed.");
+            _logger.LogWarning(ex, "读取 Codex app-server 额度失败。");
             ResetProcess();
-            return QuotaSnapshot.Empty($"app-server failed: {ex.Message}");
+            return QuotaSnapshot.Empty($"app-server 失败：{ex.Message}");
         }
         finally
         {
@@ -59,7 +59,7 @@ public sealed class CodexAppServerClient : IDisposable
     {
         if (_process?.StandardInput is null || _process.StandardOutput is null)
         {
-            throw new InvalidOperationException("app-server process is not running.");
+            throw new InvalidOperationException("app-server 进程未运行。");
         }
 
         var id = _nextId++;
@@ -83,7 +83,7 @@ public sealed class CodexAppServerClient : IDisposable
             var line = await lineTask.ConfigureAwait(false);
             if (line is null)
             {
-                throw new InvalidOperationException("app-server stdout closed.");
+                throw new InvalidOperationException("app-server stdout 已关闭。");
             }
 
             using var document = JsonDocument.Parse(line);
@@ -123,7 +123,7 @@ public sealed class CodexAppServerClient : IDisposable
             CreateNoWindow = true
         };
 
-        _process = Process.Start(startInfo) ?? throw new InvalidOperationException("Failed to start codex app-server.");
+        _process = Process.Start(startInfo) ?? throw new InvalidOperationException("启动 codex app-server 失败。");
         _ = Task.Run(async () =>
         {
             try
@@ -141,7 +141,7 @@ public sealed class CodexAppServerClient : IDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "stderr drain stopped.");
+                _logger.LogDebug(ex, "stderr 读取已停止。");
             }
         });
     }

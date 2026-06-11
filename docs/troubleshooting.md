@@ -1,8 +1,8 @@
-# Troubleshooting
+# 故障排查
 
-## GitHub CLI is missing
+## 缺少 GitHub CLI
 
-Install GitHub CLI, then authenticate:
+安装 GitHub CLI 并完成认证：
 
 ```powershell
 winget install --id GitHub.cli
@@ -10,35 +10,35 @@ gh auth login
 gh auth status
 ```
 
-## .NET SDK is missing
+## 缺少 .NET SDK
 
-Install the .NET 8 SDK, not only the runtime:
+请安装 .NET 8 SDK，不要只安装 Runtime：
 
 ```powershell
 winget install --id Microsoft.DotNet.SDK.8
 dotnet --info
 ```
 
-## Codex CLI is missing
+## 缺少 Codex CLI
 
-Install Codex CLI and verify:
+安装 Codex CLI 并验证：
 
 ```powershell
 where codex
 codex --version
 ```
 
-If Codex is installed in a custom location, set the path in Codex Bar Settings.
+如果 Codex 安装在自定义位置，请在 Codex Bar 设置页中指定路径。
 
-## No quota data
+## 没有额度数据
 
-Check:
+请检查：
 
-- Codex CLI is installed.
-- Codex is logged in.
-- `codex app-server --listen stdio://` can start.
-- Local session logs exist under `%USERPROFILE%\.codex\sessions`.
+- Codex CLI 已安装。
+- Codex 已登录。
+- `codex app-server --listen stdio://` 可以启动。
+- 本地 session 日志存在于 `%USERPROFILE%\.codex\sessions`。
 
-## Corrupted settings
+## 设置文件损坏
 
-Codex Bar renames corrupted `settings.json` to a `.bad-*` backup and recreates defaults.
+如果 `settings.json` 损坏，Codex Bar 会把它重命名为 `.bad-*` 备份，并重新创建默认设置。

@@ -23,7 +23,7 @@ public sealed class CodexActivityDetector
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to detect Codex activity.");
+            _logger.LogWarning(ex, "检测 Codex 活动状态失败。");
             return new CodexActivitySnapshot(CodexActivityStatus.Unknown, DateTimeOffset.Now, ex.Message);
         }
     }
@@ -42,22 +42,22 @@ public sealed class CodexActivityDetector
 
             if ((DateTimeOffset.Now - timestamp).TotalMinutes > 30)
             {
-                return new CodexActivitySnapshot(CodexActivityStatus.Idle, timestamp, "No recent Codex activity.");
+                return new CodexActivitySnapshot(CodexActivityStatus.Idle, timestamp, "最近没有 Codex 活动。");
             }
 
             if (ContainsAny(line, "request_user_input", "approval", "permission", "sandbox permission", "review pending", "waiting_for_user"))
             {
-                return new CodexActivitySnapshot(CodexActivityStatus.WaitingForUser, timestamp, "Waiting for user input or approval.");
+                return new CodexActivitySnapshot(CodexActivityStatus.WaitingForUser, timestamp, "正在等待用户输入或授权。");
             }
 
             if (line.Contains("auto_review", StringComparison.Ordinal))
             {
-                return new CodexActivitySnapshot(CodexActivityStatus.AutoReviewing, timestamp, "Auto review is running.");
+                return new CodexActivitySnapshot(CodexActivityStatus.AutoReviewing, timestamp, "正在自动审查。");
             }
 
             if (ContainsAny(line, "task_complete", "\"completed\"", "turn_completed"))
             {
-                return new CodexActivitySnapshot(CodexActivityStatus.Completed, timestamp, "Task completed.");
+                return new CodexActivitySnapshot(CodexActivityStatus.Completed, timestamp, "任务已完成。");
             }
 
             if (ContainsAny(
@@ -74,16 +74,16 @@ public sealed class CodexActivityDetector
                     "patch_apply_end",
                     "tool_call"))
             {
-                return new CodexActivitySnapshot(CodexActivityStatus.Working, timestamp, "Codex is working.");
+                return new CodexActivitySnapshot(CodexActivityStatus.Working, timestamp, "Codex 正在工作。");
             }
 
             if (ContainsAny(line, "turn_aborted", "thread_rolled_back", "\"error\""))
             {
-                return new CodexActivitySnapshot(CodexActivityStatus.Error, timestamp, "Recent session event indicates an error or abort.");
+                return new CodexActivitySnapshot(CodexActivityStatus.Error, timestamp, "最近的 session 事件显示任务出错或中止。");
             }
         }
 
-        return new CodexActivitySnapshot(CodexActivityStatus.Idle, DateTimeOffset.Now, "No active Codex task detected.");
+        return new CodexActivitySnapshot(CodexActivityStatus.Idle, DateTimeOffset.Now, "未检测到活跃的 Codex 任务。");
     }
 
     private static bool ContainsAny(string text, params string[] needles)

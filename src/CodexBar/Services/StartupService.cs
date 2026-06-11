@@ -25,7 +25,7 @@ public sealed class StartupService
         var exePath = Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
         if (string.IsNullOrWhiteSpace(exePath))
         {
-            throw new InvalidOperationException("Cannot resolve CodexBar executable path for startup registration.");
+            throw new InvalidOperationException("无法解析 CodexBar 可执行文件路径，不能注册开机启动。");
         }
 
         key.SetValue(ValueName, $"\"{exePath}\"");

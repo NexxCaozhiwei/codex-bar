@@ -39,7 +39,7 @@ public sealed class CodexSessionLogReader
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogDebug(ex, "Failed to parse token_count line in {File}", file.FullName);
+                    _logger.LogDebug(ex, "解析 {File} 中的 token_count 行失败。", file.FullName);
                     continue;
                 }
 
@@ -61,7 +61,7 @@ public sealed class CodexSessionLogReader
             }
         }
 
-        return QuotaSnapshot.Empty("No usable Codex session token_count rate limit event was found.");
+        return QuotaSnapshot.Empty("没有找到可用的 Codex session token_count 额度事件。");
     }
 
     private IReadOnlyList<string> ReadRecentLines(int maxLines, CancellationToken cancellationToken)

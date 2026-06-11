@@ -15,7 +15,7 @@ public sealed class TrayService : IDisposable
         _notifyIcon = new NotifyIcon
         {
             Icon = SystemIcons.Application,
-            Text = "Codex Bar",
+            Text = "Codex Bar 状态",
             Visible = true,
             ContextMenuStrip = BuildMenu(mainWindow, viewModel)
         };
@@ -48,17 +48,17 @@ public sealed class TrayService : IDisposable
     private static ContextMenuStrip BuildMenu(Window mainWindow, MainViewModel viewModel)
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Show / Hide", null, (_, _) =>
+        menu.Items.Add("显示 / 隐藏", null, (_, _) =>
         {
             if (mainWindow.IsVisible) mainWindow.Hide(); else mainWindow.Show();
         });
-        menu.Items.Add("Refresh", null, async (_, _) => await viewModel.RefreshAsync());
-        menu.Items.Add("Settings", null, (_, _) => viewModel.ShowSettings());
-        menu.Items.Add("Lock position", null, (_, _) => viewModel.ToggleLockPosition());
-        menu.Items.Add("Top most", null, (_, _) => viewModel.ToggleTopMost());
-        menu.Items.Add("Start with Windows", null, (_, _) => viewModel.ToggleStartup());
+        menu.Items.Add("刷新", null, async (_, _) => await viewModel.RefreshAsync());
+        menu.Items.Add("设置", null, (_, _) => viewModel.ShowSettings());
+        menu.Items.Add("锁定位置", null, (_, _) => viewModel.ToggleLockPosition());
+        menu.Items.Add("窗口置顶", null, (_, _) => viewModel.ToggleTopMost());
+        menu.Items.Add("开机启动", null, (_, _) => viewModel.ToggleStartup());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) =>
+        menu.Items.Add("退出", null, (_, _) =>
         {
             viewModel.SaveWindowPosition();
             Application.Current.Shutdown();

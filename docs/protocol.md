@@ -1,16 +1,16 @@
-# Codex Data Protocol
+# Codex 数据协议
 
 ## app-server
 
-Codex Bar starts:
+Codex Bar 启动：
 
 ```powershell
 codex app-server --listen stdio://
 ```
 
-It sends newline-delimited JSON-RPC-like messages over stdin/stdout. Current Codex app-server schema does not include the standard `jsonrpc: "2.0"` field on the wire.
+它通过 stdin/stdout 发送换行分隔的 JSON-RPC-like 消息。当前 Codex app-server 生成的 schema 在线上消息中不包含标准 `jsonrpc: "2.0"` 字段。
 
-Initialize:
+初始化：
 
 ```json
 {
@@ -20,7 +20,7 @@ Initialize:
     "clientInfo": {
       "name": "codex-bar",
       "title": "Codex Bar",
-      "version": "0.1.1"
+      "version": "0.1.2"
     },
     "capabilities": {
       "experimentalApi": true,
@@ -30,7 +30,7 @@ Initialize:
 }
 ```
 
-Quota read:
+读取额度：
 
 ```json
 {
@@ -39,16 +39,16 @@ Quota read:
 }
 ```
 
-For methods whose generated protocol type has `params: undefined`, Codex Bar omits `params` instead of sending `null`.
+生成协议中 `params: undefined` 的方法需要省略 `params`，不要发送 `null`。
 
-Supported quota shapes:
+支持的额度结构：
 
 - `result.rateLimitsByLimitId.codex.primary`
 - `result.rateLimitsByLimitId.codex.secondary`
 - `result.rateLimits.primary`
 - `result.rateLimits.secondary`
 
-Supported field aliases:
+支持的字段别名：
 
 - `windowDurationMins` / `window_minutes`
 - `usedPercent` / `used_percent`
@@ -56,14 +56,14 @@ Supported field aliases:
 - `planType` / `plan_type`
 - `limitId` / `limit_id`
 
-Current app-server builds may encode `resetsAt` as a Unix timestamp number. Codex Bar accepts both Unix timestamp numbers and date-time strings.
+当前 app-server 版本可能把 `resetsAt` 编码成 Unix 时间戳数字。Codex Bar 同时支持 Unix 时间戳和日期时间字符串。
 
-## jsonl fallback
+## jsonl 回退
 
-Codex Bar scans:
+Codex Bar 扫描：
 
 ```text
 %USERPROFILE%\.codex\sessions\**\*.jsonl
 ```
 
-It reads the newest 120 files at most and up to the last 4 MB per file. It parses `event_msg` records with `payload.type == "token_count"` and `payload.rate_limits.limit_id == "codex"`.
+最多读取最近修改的 120 个文件，每个文件最多读取末尾 4 MB。它解析 `event_msg` 记录，其中 `payload.type == "token_count"` 且 `payload.rate_limits.limit_id == "codex"`。

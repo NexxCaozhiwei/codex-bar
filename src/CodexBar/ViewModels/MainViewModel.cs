@@ -18,8 +18,8 @@ public sealed class MainViewModel : ObservableObject
     private readonly DispatcherTimer _timer = new();
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private Window? _mainWindow;
-    private QuotaSnapshot _quota = QuotaSnapshot.Empty("Not refreshed yet.");
-    private CodexActivitySnapshot _activity = new(CodexActivityStatus.Idle, DateTimeOffset.Now, "Not refreshed yet.");
+    private QuotaSnapshot _quota = QuotaSnapshot.Empty("尚未刷新。");
+    private CodexActivitySnapshot _activity = new(CodexActivityStatus.Idle, DateTimeOffset.Now, "尚未刷新。");
     private bool _isRefreshing;
 
     public MainViewModel(
@@ -65,7 +65,7 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    public string StatusText => _activity.Status.ToString();
+    public string StatusText => FormatStatus(_activity.Status);
 
     public string DetailStatusText => _activity.Detail;
 
@@ -101,9 +101,9 @@ public sealed class MainViewModel : ObservableObject
 
     public string LastRefreshText => _quota.LastRefresh.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
 
-    public string CodexPathText => _quotaService.LastLocation.Path ?? _quotaService.LastLocation.Error ?? "Unknown";
+    public string CodexPathText => _quotaService.LastLocation.Path ?? _quotaService.LastLocation.Error ?? "未知";
 
-    public string DataSourceText => _quota.Source.ToString();
+    public string DataSourceText => FormatDataSource(_quota.Source);
 
     public string ErrorText => _quota.Error ?? "";
 
@@ -127,7 +127,7 @@ public sealed class MainViewModel : ObservableObject
             _quota = await _quotaService.ReadAsync(Settings);
             _activity = await _activityDetector.DetectAsync();
             RaiseAllDisplayProperties();
-            _trayService.UpdateText($"Codex Bar - {StatusText} - 5h {FiveHourRemaining:0}% left");
+            _trayService.UpdateText($"Codex Bar - {StatusText} - 5h 剩余 {FiveHourRemaining:0}%");
         }
         finally
         {
@@ -236,16 +236,35 @@ public sealed class MainViewModel : ObservableObject
     }
 
     private static string FormatQuota(QuotaWindow? window)
-        => window is null ? "--% left" : $"{window.Label} {window.RemainingPercent:0}% left";
+        => window is null ? "剩余 --%" : $"{window.Label} 剩余 {window.RemainingPercent:0}%";
 
     private static string FormatQuotaDetails(QuotaWindow? window)
     {
         if (window is null)
         {
-            return "No data";
+            return "暂无数据";
         }
 
-        var reset = window.ResetsAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "Unknown";
-        return $"{window.Label}: used {window.UsedPercent:0.##}%, left {window.RemainingPercent:0.##}%, resets {reset}";
+        var reset = window.ResetsAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "未知";
+        return $"{window.Label}：已用 {window.UsedPercent:0.##}%，剩余 {window.RemainingPercent:0.##}%，重置时间 {reset}";
     }
+
+    private static string FormatStatus(CodexActivityStatus status) => status switch
+    {
+        CodexActivityStatus.Idle => "空闲",
+        CodexActivityStatus.Working => "正在工作",
+        CodexActivityStatus.WaitingForUser => "等待用户",
+        CodexActivityStatus.AutoReviewing => "自动审查",
+        CodexActivityStatus.Completed => "已完成",
+        CodexActivityStatus.Unknown => "未知",
+        CodexActivityStatus.Error => "错误",
+        _ => "未知"
+    };
+
+    private static string FormatDataSource(QuotaDataSource source) => source switch
+    {
+        QuotaDataSource.AppServer => "app-server",
+        QuotaDataSource.JsonlFallback => "jsonl 回退",
+        _ => "无数据"
+    };
 }

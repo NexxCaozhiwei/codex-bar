@@ -53,7 +53,7 @@ public sealed class SettingsService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "settings.json is corrupted; restoring defaults.");
+            _logger.LogWarning(ex, "settings.json 已损坏，正在恢复默认设置。");
             var backup = SettingsPath + ".bad-" + DateTime.Now.ToString("yyyyMMddHHmmss");
             File.Move(SettingsPath, backup, overwrite: true);
             var defaults = new AppSettings();

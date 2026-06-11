@@ -30,7 +30,7 @@ public sealed class JsonQuotaParser
 
         if (windows.Count == 0)
         {
-            return QuotaSnapshot.Empty("No rateLimits object was found in app-server response.");
+            return QuotaSnapshot.Empty("app-server 响应中没有找到 rateLimits 数据。");
         }
 
         return BuildSnapshot(windows, QuotaDataSource.AppServer, null);

@@ -1,7 +1,7 @@
 <Window x:Class="CodexBar.DetailsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Codex Bar Details"
+        Title="Codex Bar 详情"
         Width="420"
         Height="280"
         WindowStartupLocation="CenterOwner"
@@ -13,17 +13,17 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <TextBlock Text="Codex Bar Details" FontSize="18" FontWeight="SemiBold" Foreground="#F4F7FB" />
+        <TextBlock Text="Codex Bar 详情" FontSize="18" FontWeight="SemiBold" Foreground="#F4F7FB" />
         <StackPanel Grid.Row="1" Margin="0,14,0,0">
             <TextBlock Text="{Binding FiveHourDetails}" Foreground="#F4F7FB" Margin="0,0,0,8" />
             <TextBlock Text="{Binding WeeklyDetails}" Foreground="#F4F7FB" Margin="0,0,0,8" />
-            <TextBlock Text="{Binding StatusText, StringFormat=Status: {0}}" Foreground="#F4F7FB" Margin="0,0,0,8" />
+            <TextBlock Text="{Binding StatusText, StringFormat=状态：{0}}" Foreground="#F4F7FB" Margin="0,0,0,8" />
             <TextBlock Text="{Binding DetailStatusText}" Foreground="#9DA7B3" TextWrapping="Wrap" Margin="0,0,0,8" />
-            <TextBlock Text="{Binding LastRefreshText, StringFormat=Last refresh: {0}}" Foreground="#9DA7B3" Margin="0,0,0,8" />
-            <TextBlock Text="{Binding CodexPathText, StringFormat=Codex CLI: {0}}" Foreground="#9DA7B3" TextWrapping="Wrap" Margin="0,0,0,8" />
-            <TextBlock Text="{Binding DataSourceText, StringFormat=Data source: {0}}" Foreground="#9DA7B3" Margin="0,0,0,8" />
+            <TextBlock Text="{Binding LastRefreshText, StringFormat=最近刷新：{0}}" Foreground="#9DA7B3" Margin="0,0,0,8" />
+            <TextBlock Text="{Binding CodexPathText, StringFormat=Codex CLI：{0}}" Foreground="#9DA7B3" TextWrapping="Wrap" Margin="0,0,0,8" />
+            <TextBlock Text="{Binding DataSourceText, StringFormat=数据来源：{0}}" Foreground="#9DA7B3" Margin="0,0,0,8" />
             <TextBlock Text="{Binding ErrorText}" Foreground="#FFB86B" TextWrapping="Wrap" />
         </StackPanel>
-        <Button Grid.Row="2" Width="86" Height="30" HorizontalAlignment="Right" Content="Close" IsCancel="True" />
+        <Button Grid.Row="2" Width="86" Height="30" HorizontalAlignment="Right" Content="关闭" IsCancel="True" />
     </Grid>
 </Window>

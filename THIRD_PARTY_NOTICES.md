@@ -1,11 +1,11 @@
-# Third Party Notices
+# 第三方声明
 
 ## Tongzh-SEU/Codex-Signal-Glance
 
-- Repository: https://github.com/Tongzh-SEU/Codex-Signal-Glance
-- Copyright: Copyright (c) 2026 Haotong Zhang
-- License: MIT License
+- 仓库：https://github.com/Tongzh-SEU/Codex-Signal-Glance
+- 版权：Copyright (c) 2026 Haotong Zhang
+- 许可证：MIT License
 
-Codex Bar references the original project's core product idea: a lightweight desktop glance surface for Codex quota and activity. Codex Bar is implemented separately as a Windows 11 WPF application and does not copy the Swift/macOS implementation.
+Codex Bar 参考了原项目的核心产品思路：用轻量桌面入口查看 Codex 额度和活动状态。Codex Bar 是独立实现的 Windows 11 WPF 应用，没有复制 Swift/macOS 实现代码。
 
-MIT License summary: permission is granted to use, copy, modify, merge, publish, distribute, sublicense, and sell copies, provided the copyright and permission notice are included. The software is provided without warranty.
+MIT License 摘要：允许使用、复制、修改、合并、发布、分发、再许可和销售软件副本，但必须保留版权声明和许可声明。软件按原样提供，不附带任何担保。
