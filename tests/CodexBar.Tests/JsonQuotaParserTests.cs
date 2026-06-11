@@ -34,6 +34,46 @@ public sealed class JsonQuotaParserTests
     }
 
     [Fact]
+    public void ParsesCurrentAppServerSchemaWithUnixReset()
+    {
+        var json = """
+        {
+          "id": 2,
+          "result": {
+            "rateLimits": {
+              "limitId": "codex",
+              "limitName": null,
+              "primary": { "windowDurationMins": 300, "usedPercent": 10, "resetsAt": 1781186400 },
+              "secondary": { "windowDurationMins": 10080, "usedPercent": 20, "resetsAt": 1781704800 },
+              "credits": null,
+              "individualLimit": null,
+              "planType": "plus",
+              "rateLimitReachedType": null
+            },
+            "rateLimitsByLimitId": {
+              "codex": {
+                "limitId": "codex",
+                "limitName": null,
+                "primary": { "windowDurationMins": 300, "usedPercent": 11, "resetsAt": 1781186400 },
+                "secondary": { "windowDurationMins": 10080, "usedPercent": 21, "resetsAt": 1781704800 },
+                "credits": null,
+                "individualLimit": null,
+                "planType": "plus",
+                "rateLimitReachedType": null
+              }
+            }
+          }
+        }
+        """;
+
+        var snapshot = _parser.ParseAppServerResponse(json);
+
+        Assert.Equal(89, snapshot.FiveHour?.RemainingPercent);
+        Assert.Equal(79, snapshot.Weekly?.RemainingPercent);
+        Assert.NotNull(snapshot.FiveHour?.ResetsAt);
+    }
+
+    [Fact]
     public void ParsesFallbackRateLimits()
     {
         var json = """

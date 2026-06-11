@@ -33,13 +33,13 @@ public sealed class CodexAppServerClient : IDisposable
             {
                 await SendRequestAsync("initialize", new
                 {
-                    clientInfo = new { name = "codex-bar", title = "Codex Bar", version = "0.1.0" },
+                    clientInfo = new { name = "codex-bar", title = "Codex Bar", version = "0.1.1" },
                     capabilities = new { experimentalApi = true, optOutNotificationMethods = Array.Empty<string>() }
                 }, timeoutCts.Token).ConfigureAwait(false);
                 _initialized = true;
             }
 
-            var response = await SendRequestAsync("account/rateLimits/read", null, timeoutCts.Token).ConfigureAwait(false);
+            var response = await SendRequestAsync("account/rateLimits/read", null, timeoutCts.Token, includeParams: false).ConfigureAwait(false);
             var snapshot = _parser.ParseAppServerResponse(response);
             return snapshot with { Source = QuotaDataSource.AppServer };
         }
@@ -55,7 +55,7 @@ public sealed class CodexAppServerClient : IDisposable
         }
     }
 
-    private async Task<string> SendRequestAsync(string method, object? parameters, CancellationToken cancellationToken)
+    private async Task<string> SendRequestAsync(string method, object? parameters, CancellationToken cancellationToken, bool includeParams = true)
     {
         if (_process?.StandardInput is null || _process.StandardOutput is null)
         {
@@ -63,13 +63,16 @@ public sealed class CodexAppServerClient : IDisposable
         }
 
         var id = _nextId++;
-        var request = new
+        var request = new Dictionary<string, object?>
         {
-            jsonrpc = "2.0",
-            id,
-            method,
-            @params = parameters
+            ["id"] = id,
+            ["method"] = method
         };
+
+        if (includeParams)
+        {
+            request["params"] = parameters;
+        }
 
         await _process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(request)).ConfigureAwait(false);
         await _process.StandardInput.FlushAsync().ConfigureAwait(false);

@@ -50,7 +50,7 @@
                     <ColumnDefinition Width="70" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="5h" Foreground="{StaticResource MutedBrush}" FontSize="11" VerticalAlignment="Center" />
-                <ProgressBar Grid.Column="1" Height="7" Minimum="0" Maximum="100" Value="{Binding FiveHourRemaining}" Foreground="#2FBF71" Background="{StaticResource TrackBrush}" />
+                <ProgressBar Grid.Column="1" Height="7" Minimum="0" Maximum="100" Value="{Binding FiveHourRemaining, Mode=OneWay}" Foreground="#2FBF71" Background="{StaticResource TrackBrush}" />
                 <TextBlock Grid.Column="2" Text="{Binding FiveHourText}" Foreground="{StaticResource TextBrush}" FontSize="11" TextAlignment="Right" VerticalAlignment="Center" />
             </Grid>
 
@@ -61,7 +61,7 @@
                     <ColumnDefinition Width="70" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="7d" Foreground="{StaticResource MutedBrush}" FontSize="11" VerticalAlignment="Center" />
-                <ProgressBar Grid.Column="1" Height="7" Minimum="0" Maximum="100" Value="{Binding WeeklyRemaining}" Foreground="#3DA5FF" Background="{StaticResource TrackBrush}" />
+                <ProgressBar Grid.Column="1" Height="7" Minimum="0" Maximum="100" Value="{Binding WeeklyRemaining, Mode=OneWay}" Foreground="#3DA5FF" Background="{StaticResource TrackBrush}" />
                 <TextBlock Grid.Column="2" Text="{Binding WeeklyText}" Foreground="{StaticResource TextBrush}" FontSize="11" TextAlignment="Right" VerticalAlignment="Center" />
             </Grid>
         </Grid>

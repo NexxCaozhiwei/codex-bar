@@ -201,7 +201,17 @@ public sealed class JsonQuotaParser
 
     private static DateTimeOffset? ReadDateTime(JsonElement element, string propertyName)
     {
-        var value = ReadString(element, propertyName);
-        return DateTimeOffset.TryParse(value, out var dateTime) ? dateTime : null;
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var unixSeconds))
+        {
+            return DateTimeOffset.FromUnixTimeSeconds(unixSeconds);
+        }
+
+        var text = value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
+        return DateTimeOffset.TryParse(text, out var dateTime) ? dateTime : null;
     }
 }
