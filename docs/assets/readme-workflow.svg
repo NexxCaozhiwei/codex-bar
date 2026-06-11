@@ -1,0 +1,53 @@
+<svg width="1100" height="520" viewBox="0 0 1100 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Codex Bar data workflow</title>
+  <desc id="desc">Data flow from Codex CLI app-server and local jsonl files to quota service and WPF UI.</desc>
+  <defs>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f7fbff"/></linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2f7bf6"/><stop offset="1" stop-color="#4fd1c5"/></linearGradient>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M2,2 L10,6 L2,10 Z" fill="#8aa2c2"/></marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#173559" flood-opacity="0.12"/></filter>
+  </defs>
+  <rect width="1100" height="520" rx="26" fill="#f5f8fc"/>
+  <text x="70" y="70" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="32" font-weight="800" fill="#162033">数据链路：优先实时，失败回退</text>
+  <text x="70" y="106" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="18" fill="#5f6f84">Codex Bar 先读取本机 Codex app-server；接口不可用时，自动扫描本地 session jsonl。</text>
+
+  <g transform="translate(72 162)">
+    <rect x="0" y="0" width="252" height="118" rx="22" fill="url(#card)" stroke="#dbe7f5"/>
+    <rect x="24" y="22" width="48" height="48" rx="14" fill="#e8f1ff"/>
+    <text x="88" y="44" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="20" font-weight="800" fill="#1e293b">Codex CLI</text>
+    <text x="88" y="72" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="14" fill="#64748b">where codex / 自定义路径</text>
+    <text x="24" y="99" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="13" fill="#94a3b8">检测命令位置</text>
+  </g>
+
+  <g transform="translate(424 128)">
+    <rect x="0" y="0" width="260" height="120" rx="22" fill="url(#card)" stroke="#dbe7f5"/>
+    <rect x="24" y="22" width="48" height="48" rx="14" fill="#e6fffa"/>
+    <text x="88" y="44" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="20" font-weight="800" fill="#1e293b">app-server</text>
+    <text x="88" y="72" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="14" fill="#64748b">account/rateLimits/read</text>
+    <text x="24" y="101" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="13" fill="#14b8a6">优先读取额度窗口</text>
+  </g>
+
+  <g transform="translate(424 292)">
+    <rect x="0" y="0" width="260" height="120" rx="22" fill="url(#card)" stroke="#dbe7f5"/>
+    <rect x="24" y="22" width="48" height="48" rx="14" fill="#eef2ff"/>
+    <text x="88" y="44" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="20" font-weight="800" fill="#1e293b">session jsonl</text>
+    <text x="88" y="72" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="14" fill="#64748b">%USERPROFILE%\.codex\sessions</text>
+    <text x="24" y="101" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="13" fill="#6366f1">回退解析 token_count</text>
+  </g>
+
+  <g transform="translate(806 208)">
+    <rect x="0" y="0" width="224" height="148" rx="22" fill="#111827"/>
+    <text x="26" y="42" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="21" font-weight="800" fill="#ffffff">WPF 悬浮状态条</text>
+    <text x="26" y="75" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="14" fill="#cbd5e1">状态灯 + 双额度进度</text>
+    <text x="26" y="103" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="14" fill="#cbd5e1">托盘菜单 + 详情诊断</text>
+    <rect x="26" y="120" width="166" height="8" rx="4" fill="url(#accent)"/>
+  </g>
+
+  <line x1="324" y1="221" x2="412" y2="189" stroke="#8aa2c2" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="324" y1="221" x2="412" y2="352" stroke="#8aa2c2" stroke-width="3" stroke-dasharray="8 8" marker-end="url(#arrow)"/>
+  <line x1="684" y1="188" x2="792" y2="260" stroke="#8aa2c2" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="684" y1="352" x2="792" y2="300" stroke="#8aa2c2" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <text x="350" y="156" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="13" fill="#64748b">首选</text>
+  <text x="338" y="338" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="13" fill="#64748b">回退</text>
+</svg>
