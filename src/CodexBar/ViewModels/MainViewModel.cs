@@ -236,7 +236,7 @@ public sealed class MainViewModel : ObservableObject
     }
 
     private static string FormatQuota(QuotaWindow? window)
-        => window is null ? "剩余 --%" : $"{window.Label} 剩余 {window.RemainingPercent:0}%";
+        => window is null ? "剩余 --%" : $"剩余 {window.RemainingPercent:0}%";
 
     private static string FormatQuotaDetails(QuotaWindow? window)
     {

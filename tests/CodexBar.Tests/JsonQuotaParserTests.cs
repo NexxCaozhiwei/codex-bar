@@ -94,6 +94,28 @@ public sealed class JsonQuotaParserTests
     }
 
     [Fact]
+    public void ParsesRemainingPercentAliases()
+    {
+        var json = """
+        {
+          "result": {
+            "rateLimits": {
+              "primary": { "windowDurationMinutes": 300, "remainingPercent": 25 },
+              "secondary": { "windowDurationMins": 10080, "remaining_percent": 80 }
+            }
+          }
+        }
+        """;
+
+        var snapshot = _parser.ParseAppServerResponse(json);
+
+        Assert.Equal(25, snapshot.FiveHour?.RemainingPercent);
+        Assert.Equal(75, snapshot.FiveHour?.UsedPercent);
+        Assert.Equal(80, snapshot.Weekly?.RemainingPercent);
+        Assert.Equal(20, snapshot.Weekly?.UsedPercent);
+    }
+
+    [Fact]
     public void ParsesJsonlTokenCount()
     {
         var line = """

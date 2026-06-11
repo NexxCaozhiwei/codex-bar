@@ -10,7 +10,10 @@ public sealed class WindowDockingService
     {
         window.Topmost = settings.TopMost;
 
-        if (!settings.AutoDockToTaskbar && settings.Left is not null && settings.Top is not null)
+        if (!settings.AutoDockToTaskbar &&
+            settings.Left is not null &&
+            settings.Top is not null &&
+            IsVisibleOnVirtualScreen(window, settings.Left.Value, settings.Top.Value))
         {
             window.Left = settings.Left.Value;
             window.Top = settings.Top.Value;
@@ -43,5 +46,18 @@ public sealed class WindowDockingService
         }
 
         return new System.Windows.Point(source.CompositionTarget.TransformToDevice.M11, source.CompositionTarget.TransformToDevice.M22);
+    }
+
+    private static bool IsVisibleOnVirtualScreen(Window window, double left, double top)
+    {
+        var windowRect = new Rect(left, top, Math.Max(1, window.Width), Math.Max(1, window.Height));
+        var screenRect = new Rect(
+            SystemParameters.VirtualScreenLeft,
+            SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenWidth,
+            SystemParameters.VirtualScreenHeight);
+
+        windowRect.Intersect(screenRect);
+        return windowRect.Width >= 32 && windowRect.Height >= 24;
     }
 }

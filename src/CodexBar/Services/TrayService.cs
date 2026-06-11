@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.IO;
 using System.Windows;
 using System.Windows.Forms;
 using CodexBar.ViewModels;
@@ -14,7 +15,7 @@ public sealed class TrayService : IDisposable
     {
         _notifyIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = LoadApplicationIcon(),
             Text = "Codex Bar 状态",
             Visible = true,
             ContextMenuStrip = BuildMenu(mainWindow, viewModel)
@@ -30,8 +31,7 @@ public sealed class TrayService : IDisposable
                 }
                 else
                 {
-                    mainWindow.Show();
-                    mainWindow.Activate();
+                    ShowMainWindow(mainWindow, viewModel.Settings.TopMost);
                 }
             }
         };
@@ -50,7 +50,14 @@ public sealed class TrayService : IDisposable
         var menu = new ContextMenuStrip();
         menu.Items.Add("显示 / 隐藏", null, (_, _) =>
         {
-            if (mainWindow.IsVisible) mainWindow.Hide(); else mainWindow.Show();
+            if (mainWindow.IsVisible)
+            {
+                mainWindow.Hide();
+            }
+            else
+            {
+                ShowMainWindow(mainWindow, viewModel.Settings.TopMost);
+            }
         });
         menu.Items.Add("刷新", null, async (_, _) => await viewModel.RefreshAsync());
         menu.Items.Add("设置", null, (_, _) => viewModel.ShowSettings());
@@ -64,6 +71,31 @@ public sealed class TrayService : IDisposable
             Application.Current.Shutdown();
         });
         return menu;
+    }
+
+    private static void ShowMainWindow(Window window, bool keepTopmost)
+    {
+        window.Show();
+        window.WindowState = WindowState.Normal;
+        window.Activate();
+        window.Topmost = true;
+        window.Topmost = keepTopmost;
+        window.Focus();
+    }
+
+    private static Icon LoadApplicationIcon()
+    {
+        var processPath = Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(processPath) && File.Exists(processPath))
+        {
+            var icon = Icon.ExtractAssociatedIcon(processPath);
+            if (icon is not null)
+            {
+                return icon;
+            }
+        }
+
+        return SystemIcons.Application;
     }
 
     public void Dispose()

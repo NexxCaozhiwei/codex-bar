@@ -27,8 +27,6 @@ public sealed class QuotaService
     public async Task<QuotaSnapshot> ReadAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
         LastLocation = await _locator.LocateAsync(settings.CodexPath, cancellationToken).ConfigureAwait(false);
-        DateTimeOffset? appServerAttemptTime = DateTimeOffset.Now;
-
         if (LastLocation.Found)
         {
             var appServer = await _appServerClient
@@ -43,7 +41,7 @@ public sealed class QuotaService
             _logger.LogInformation("app-server 返回后回退到 session jsonl：{Error}", appServer.Error);
         }
 
-        var fallback = await _sessionLogReader.ReadLatestQuotaAsync(appServerAttemptTime, cancellationToken).ConfigureAwait(false);
+        var fallback = await _sessionLogReader.ReadLatestQuotaAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         if (fallback.Source == QuotaDataSource.JsonlFallback)
         {
             return fallback;

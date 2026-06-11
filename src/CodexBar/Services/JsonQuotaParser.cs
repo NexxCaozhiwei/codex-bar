@@ -118,15 +118,25 @@ public sealed class JsonQuotaParser
     private static bool TryParseWindow(JsonElement element, out QuotaWindow window)
     {
         window = default!;
-        var minutes = ReadInt(element, "windowDurationMins") ?? ReadInt(element, "window_minutes") ?? 0;
+        var minutes = ReadInt(element, "windowDurationMins")
+            ?? ReadInt(element, "windowDurationMinutes")
+            ?? ReadInt(element, "window_minutes")
+            ?? ReadInt(element, "windowMins")
+            ?? ReadInt(element, "window_mins")
+            ?? 0;
         var usedPercent = ReadDouble(element, "usedPercent") ?? ReadDouble(element, "used_percent");
+        var remainingPercent = ReadDouble(element, "remainingPercent")
+            ?? ReadDouble(element, "remaining_percent")
+            ?? ReadDouble(element, "percentRemaining")
+            ?? ReadDouble(element, "percent_remaining");
 
-        if (minutes <= 0 || usedPercent is null)
+        if (minutes <= 0 || (usedPercent is null && remainingPercent is null))
         {
             return false;
         }
 
-        var remaining = Math.Clamp(100d - usedPercent.Value, 0d, 100d);
+        var remaining = Math.Clamp(remainingPercent ?? 100d - usedPercent!.Value, 0d, 100d);
+        var used = Math.Clamp(usedPercent ?? 100d - remaining, 0d, 100d);
         var resetsAt = ReadDateTime(element, "resetsAt") ?? ReadDateTime(element, "resets_at");
         var planType = ReadString(element, "planType") ?? ReadString(element, "plan_type");
         var limitId = ReadString(element, "limitId") ?? ReadString(element, "limit_id");
@@ -134,7 +144,7 @@ public sealed class JsonQuotaParser
         window = new QuotaWindow(
             LabelForWindow(minutes),
             minutes,
-            Math.Clamp(usedPercent.Value, 0d, 100d),
+            used,
             remaining,
             resetsAt,
             planType,

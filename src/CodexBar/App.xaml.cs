@@ -42,7 +42,7 @@ public partial class App : System.Windows.Application
         var viewModel = _host.Services.GetRequiredService<MainViewModel>();
 
         tray.Initialize(window, viewModel);
-        window.Show();
+        ShowMainWindow(window, viewModel.Settings.TopMost);
         await viewModel.RefreshAsync();
     }
 
@@ -57,5 +57,15 @@ public partial class App : System.Windows.Application
         _host.Services.GetRequiredService<CodexAppServerClient>().Dispose();
         await _host.StopAsync(TimeSpan.FromSeconds(2));
         _host.Dispose();
+    }
+
+    private static void ShowMainWindow(Window window, bool keepTopmost)
+    {
+        window.Show();
+        window.WindowState = WindowState.Normal;
+        window.Activate();
+        window.Topmost = true;
+        window.Topmost = keepTopmost;
+        window.Focus();
     }
 }

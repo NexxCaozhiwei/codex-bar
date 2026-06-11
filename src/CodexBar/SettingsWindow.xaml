@@ -6,6 +6,7 @@
         Height="390"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
+        Icon="Resources/CodexBar.ico"
         Background="#1B1D24">
     <Grid Margin="18">
         <Grid.RowDefinitions>
