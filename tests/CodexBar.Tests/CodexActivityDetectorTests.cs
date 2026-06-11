@@ -1,6 +1,7 @@
 using CodexBar.Models;
 using CodexBar.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
 
 namespace CodexBar.Tests;
 
@@ -12,7 +13,7 @@ public sealed class CodexActivityDetectorTests
         var detector = CreateDetector();
         var timestamp = DateTimeOffset.Now.ToString("O");
         var snapshot = detector.DetectFromLines([
-            $$"""{"type":"event_msg","timestamp":"{{timestamp}}","payload":{"type":"task_started"}}"""
+            $@"{{""type"":""event_msg"",""timestamp"":""{timestamp}"",""payload"":{{""type"":""task_started""}}}}"
         ]);
 
         Assert.Equal(CodexActivityStatus.Working, snapshot.Status);
@@ -24,7 +25,7 @@ public sealed class CodexActivityDetectorTests
         var detector = CreateDetector();
         var timestamp = DateTimeOffset.Now.ToString("O");
         var snapshot = detector.DetectFromLines([
-            $$"""{"type":"event_msg","timestamp":"{{timestamp}}","payload":{"type":"task_complete"}}"""
+            $@"{{""type"":""event_msg"",""timestamp"":""{timestamp}"",""payload"":{{""type"":""task_complete""}}}}"
         ]);
 
         Assert.Equal(CodexActivityStatus.Completed, snapshot.Status);
@@ -36,7 +37,7 @@ public sealed class CodexActivityDetectorTests
         var detector = CreateDetector();
         var timestamp = DateTimeOffset.Now.ToString("O");
         var snapshot = detector.DetectFromLines([
-            $$"""{"type":"response_item","timestamp":"{{timestamp}}","payload":{"tool":"approval required permission"}}"""
+            $@"{{""type"":""response_item"",""timestamp"":""{timestamp}"",""payload"":{{""tool"":""approval required permission""}}}}"
         ]);
 
         Assert.Equal(CodexActivityStatus.WaitingForUser, snapshot.Status);

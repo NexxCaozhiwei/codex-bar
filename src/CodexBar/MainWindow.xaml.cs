@@ -42,7 +42,7 @@ public partial class MainWindow : Window
         menu.Items.Add(MenuItem("Settings", (_, _) => _viewModel.ShowSettings()));
         menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem("Dock", (_, _) => _viewModel.DockNow()));
-        menu.Items.Add(MenuItem("Exit", (_, _) => Application.Current.Shutdown()));
+        menu.Items.Add(MenuItem("Exit", (_, _) => System.Windows.Application.Current.Shutdown()));
         menu.IsOpen = true;
     }
 

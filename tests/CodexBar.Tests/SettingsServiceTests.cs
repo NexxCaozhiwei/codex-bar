@@ -1,5 +1,6 @@
 using CodexBar.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
 
 namespace CodexBar.Tests;
 

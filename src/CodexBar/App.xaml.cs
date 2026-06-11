@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CodexBar;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private IHost? _host;
 

@@ -1,4 +1,5 @@
 using CodexBar.Services;
+using Xunit;
 
 namespace CodexBar.Tests;
 

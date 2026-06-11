@@ -1,8 +1,9 @@
 using System.Windows;
-using System.Windows.Media;
 using System.Windows.Threading;
 using CodexBar.Models;
 using CodexBar.Services;
+using Brush = System.Windows.Media.Brush;
+using Brushes = System.Windows.Media.Brushes;
 
 namespace CodexBar.ViewModels;
 
@@ -37,9 +38,9 @@ public sealed class MainViewModel : ObservableObject
         _trayService = trayService;
         Settings = _settingsService.Load();
         Settings.StartWithWindows = _startupService.IsEnabled();
-        RefreshCommand = new RelayCommand(async () => await RefreshAsync(), _ => !IsRefreshing);
-        SettingsCommand = new RelayCommand(ShowSettings);
-        DetailsCommand = new RelayCommand(ShowDetails);
+        RefreshCommand = new RelayCommand(async _ => await RefreshAsync(), _ => !IsRefreshing);
+        SettingsCommand = new RelayCommand(() => ShowSettings());
+        DetailsCommand = new RelayCommand(() => ShowDetails());
 
         ConfigureTimer();
     }

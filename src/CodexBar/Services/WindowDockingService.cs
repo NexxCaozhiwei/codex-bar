@@ -10,10 +10,10 @@ public sealed class WindowDockingService
     {
         window.Topmost = settings.TopMost;
 
-        if (!settings.AutoDockToTaskbar && !double.IsNaN(settings.Left) && !double.IsNaN(settings.Top))
+        if (!settings.AutoDockToTaskbar && settings.Left is not null && settings.Top is not null)
         {
-            window.Left = settings.Left;
-            window.Top = settings.Top;
+            window.Left = settings.Left.Value;
+            window.Top = settings.Top.Value;
             return;
         }
 
@@ -34,14 +34,14 @@ public sealed class WindowDockingService
         window.Top = (area.Bottom - height - margin) / scale.Y;
     }
 
-    private static Point GetScale(Window window)
+    private static System.Windows.Point GetScale(Window window)
     {
         var source = PresentationSource.FromVisual(window);
         if (source?.CompositionTarget is null)
         {
-            return new Point(1, 1);
+            return new System.Windows.Point(1, 1);
         }
 
-        return new Point(source.CompositionTarget.TransformToDevice.M11, source.CompositionTarget.TransformToDevice.M22);
+        return new System.Windows.Point(source.CompositionTarget.TransformToDevice.M11, source.CompositionTarget.TransformToDevice.M22);
     }
 }
