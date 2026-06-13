@@ -74,6 +74,18 @@ public sealed class JsonQuotaParserTests
     }
 
     [Fact]
+    public void ParsesAnonymizedAppServerFixture()
+    {
+        var snapshot = _parser.ParseAppServerResponse(TestFixtures.ReadText("app-server-rate-limits.json"));
+
+        Assert.Equal("5h", snapshot.FiveHour?.Label);
+        Assert.Equal(80, snapshot.FiveHour?.RemainingPercent);
+        Assert.Equal(new DateTimeOffset(2026, 6, 13, 14, 24, 0, TimeSpan.Zero), snapshot.FiveHour?.ResetsAt);
+        Assert.Equal("7d", snapshot.Weekly?.Label);
+        Assert.Equal(55, snapshot.Weekly?.RemainingPercent);
+    }
+
+    [Fact]
     public void ParsesFallbackRateLimits()
     {
         var json = """
@@ -127,6 +139,29 @@ public sealed class JsonQuotaParserTests
         Assert.NotNull(snapshot);
         Assert.Equal(99, snapshot!.FiveHour?.RemainingPercent);
         Assert.Equal(98, snapshot.Weekly?.RemainingPercent);
+    }
+
+    [Fact]
+    public void ParsesAnonymizedJsonlQuotaFixture()
+    {
+        var snapshot = TestFixtures.ReadJsonlNewestFirst("codex-session-completed.jsonl")
+            .Select(line =>
+            {
+                try
+                {
+                    return _parser.ParseJsonlTokenCountLine(line);
+                }
+                catch
+                {
+                    return null;
+                }
+            })
+            .FirstOrDefault(parsed => parsed is not null);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(60, snapshot!.FiveHour?.RemainingPercent);
+        Assert.Equal(new DateTimeOffset(2026, 6, 13, 14, 24, 0, TimeSpan.Zero), snapshot.FiveHour?.ResetsAt);
+        Assert.Equal(68, snapshot.Weekly?.RemainingPercent);
     }
 
     [Theory]

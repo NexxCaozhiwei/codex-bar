@@ -12,6 +12,7 @@ public sealed class CodexSessionLogReader
     private readonly ILogger<CodexSessionLogReader> _logger;
     private IReadOnlyList<FileInfo> _cachedFiles = [];
     private DateTimeOffset _lastScan = DateTimeOffset.MinValue;
+    private string? _lastScanError;
 
     public CodexSessionLogReader(JsonQuotaParser parser, ILogger<CodexSessionLogReader> logger)
     {
@@ -30,41 +31,50 @@ public sealed class CodexSessionLogReader
 
     private QuotaSnapshot ReadLatestQuota(DateTimeOffset? newerThanAppServer, CancellationToken cancellationToken)
     {
+        string? readError = null;
         foreach (var file in GetCandidateFiles())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var line in ReadTailLines(file))
+            try
             {
-                QuotaSnapshot? snapshot;
-                try
+                foreach (var line in ReadTailLines(file))
                 {
-                    snapshot = _parser.ParseJsonlTokenCountLine(line);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "解析 {File} 中的 token_count 行失败。", file.FullName);
-                    continue;
-                }
+                    QuotaSnapshot? snapshot;
+                    try
+                    {
+                        snapshot = _parser.ParseJsonlTokenCountLine(line);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "解析 {File} 中的 token_count 行失败。", file.FullName);
+                        continue;
+                    }
 
-                if (snapshot is null)
-                {
-                    continue;
+                    if (snapshot is null)
+                    {
+                        continue;
+                    }
+
+                    var effectiveTime = snapshot.LastRefresh == default
+                        ? new DateTimeOffset(file.LastWriteTimeUtc)
+                        : snapshot.LastRefresh;
+
+                    if (newerThanAppServer is not null && effectiveTime < newerThanAppServer.Value)
+                    {
+                        continue;
+                    }
+
+                    return snapshot with { LastRefresh = effectiveTime, Source = QuotaDataSource.JsonlFallback };
                 }
-
-                var effectiveTime = snapshot.LastRefresh == default
-                    ? new DateTimeOffset(file.LastWriteTimeUtc)
-                    : snapshot.LastRefresh;
-
-                if (newerThanAppServer is not null && effectiveTime < newerThanAppServer.Value)
-                {
-                    continue;
-                }
-
-                return snapshot with { LastRefresh = effectiveTime, Source = QuotaDataSource.JsonlFallback };
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                _logger.LogWarning(ex, "读取 Codex session 文件失败：{File}", file.FullName);
+                readError ??= CodexDiagnostics.DescribeSessionLogFailure(ex.Message);
             }
         }
 
-        return QuotaSnapshot.Empty("没有找到可用的 Codex session token_count 额度事件。");
+        return QuotaSnapshot.Empty(_lastScanError ?? readError ?? CodexDiagnostics.NoTokenCount);
     }
 
     private IReadOnlyList<string> ReadRecentLines(int maxLines, CancellationToken cancellationToken)
@@ -73,17 +83,32 @@ public sealed class CodexSessionLogReader
     private IReadOnlyList<CodexSessionLogEntry> ReadRecentLogEntries(int maxLines, CancellationToken cancellationToken)
     {
         var entries = new List<CodexSessionLogEntry>();
+        string? readError = null;
         foreach (var file in GetCandidateFiles().Take(12))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var fileLastWriteTime = new DateTimeOffset(file.LastWriteTimeUtc);
-            entries.AddRange(ReadTailLines(file)
-                .Take(maxLines - entries.Count)
-                .Select(line => new CodexSessionLogEntry(line, fileLastWriteTime, file.FullName)));
+            try
+            {
+                entries.AddRange(ReadTailLines(file)
+                    .Take(maxLines - entries.Count)
+                    .Select(line => new CodexSessionLogEntry(line, fileLastWriteTime, file.FullName)));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                _logger.LogWarning(ex, "读取 Codex session 文件失败：{File}", file.FullName);
+                readError ??= CodexDiagnostics.DescribeSessionLogFailure(ex.Message);
+            }
+
             if (entries.Count >= maxLines)
             {
                 break;
             }
+        }
+
+        if (entries.Count == 0 && (_lastScanError is not null || readError is not null))
+        {
+            throw new IOException(_lastScanError ?? readError);
         }
 
         return entries;
@@ -103,16 +128,28 @@ public sealed class CodexSessionLogReader
 
         if (!Directory.Exists(root))
         {
+            _lastScanError = null;
             _cachedFiles = [];
             _lastScan = DateTimeOffset.Now;
             return _cachedFiles;
         }
 
-        _cachedFiles = Directory.EnumerateFiles(root, "*.jsonl", SearchOption.AllDirectories)
-            .Select(path => new FileInfo(path))
-            .OrderByDescending(file => file.LastWriteTimeUtc)
-            .Take(MaxFilesToScan)
-            .ToArray();
+        try
+        {
+            _cachedFiles = Directory.EnumerateFiles(root, "*.jsonl", SearchOption.AllDirectories)
+                .Select(path => new FileInfo(path))
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .Take(MaxFilesToScan)
+                .ToArray();
+            _lastScanError = null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            _logger.LogWarning(ex, "扫描 Codex session 日志目录失败：{Root}", root);
+            _cachedFiles = [];
+            _lastScanError = CodexDiagnostics.DescribeSessionLogFailure(ex.Message);
+        }
+
         _lastScan = DateTimeOffset.Now;
         return _cachedFiles;
     }

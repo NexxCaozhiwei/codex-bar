@@ -8,6 +8,7 @@ namespace CodexBar;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
+    private bool _suppressNextClick;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -21,16 +22,34 @@ public partial class MainWindow : Window
     {
         if (!_viewModel.Settings.LockPosition && e.ClickCount == 1)
         {
+            var startLeft = Left;
+            var startTop = Top;
             DragMove();
+            _viewModel.SaveWindowPosition();
+            _suppressNextClick =
+                Math.Abs(Left - startLeft) > SystemParameters.MinimumHorizontalDragDistance ||
+                Math.Abs(Top - startTop) > SystemParameters.MinimumVerticalDragDistance;
         }
     }
 
     private void OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         _viewModel.SaveWindowPosition();
-        if (e.ClickCount == 1)
+        if (_suppressNextClick)
+        {
+            _suppressNextClick = false;
+            return;
+        }
+
+        if (e.ClickCount >= 2)
         {
             _viewModel.ShowDetails();
+            return;
+        }
+
+        if (e.ClickCount == 1)
+        {
+            _viewModel.ToggleQuotaDisplayMode();
         }
     }
 

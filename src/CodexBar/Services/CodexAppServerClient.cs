@@ -47,7 +47,7 @@ public sealed class CodexAppServerClient : IDisposable
         {
             _logger.LogWarning(ex, "读取 Codex app-server 额度失败。");
             ResetProcess();
-            return QuotaSnapshot.Empty($"app-server 失败：{ex.Message}");
+            return QuotaSnapshot.Empty(CodexDiagnostics.DescribeAppServerFailure(ex));
         }
         finally
         {

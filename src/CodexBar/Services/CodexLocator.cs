@@ -44,7 +44,7 @@ public sealed class CodexLocator
             }
         }
 
-        const string error = "未找到 Codex CLI。请安装 Codex CLI，或在 Codex Bar 设置中指定命令路径。";
+        var error = CodexDiagnostics.MissingCli;
         _logger.LogWarning(error);
         return new CodexLocationResult(null, error);
     }

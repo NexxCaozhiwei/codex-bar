@@ -79,7 +79,10 @@ public sealed class CodexActivityDetector
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "检测 Codex 活动状态失败。");
-            return new CodexActivitySnapshot(CodexActivityStatus.Unknown, _now(), ex.Message);
+            return new CodexActivitySnapshot(
+                CodexActivityStatus.Error,
+                _now(),
+                CodexDiagnostics.DescribeSessionLogFailure(ex.Message));
         }
     }
 
@@ -166,7 +169,7 @@ public sealed class CodexActivityDetector
             ActivityEventKind.Error => new CodexActivitySnapshot(
                 CodexActivityStatus.Error,
                 latest.Timestamp,
-                "最近的 session 事件显示任务出错或中止。",
+                latest.Detail ?? "最近的 session 事件显示任务出错或中止。",
                 latest.SourceFile),
 
             _ => new CodexActivitySnapshot(CodexActivityStatus.Unknown, latest.Timestamp, "无法判断最近 Codex 活动状态。", latest.SourceFile)
@@ -196,8 +199,12 @@ public sealed class CodexActivityDetector
                 return false;
             }
 
-            var kind = Classify(root);
-            activityEvent = new ActivityEvent(kind, timestamp.Value, entry.SourceFile);
+            var classification = Classify(root);
+            activityEvent = new ActivityEvent(
+                classification.Kind,
+                timestamp.Value,
+                entry.SourceFile,
+                classification.Detail);
             return true;
         }
         catch (JsonException)
@@ -206,31 +213,33 @@ public sealed class CodexActivityDetector
         }
     }
 
-    private static ActivityEventKind Classify(JsonElement root)
+    private static ActivityClassification Classify(JsonElement root)
     {
         var values = EnumerateSemanticValues(root).ToArray();
 
         if (values.Any(IsWaitingValue))
         {
-            return ActivityEventKind.Waiting;
+            return new ActivityClassification(ActivityEventKind.Waiting);
         }
 
         if (values.Any(IsErrorValue))
         {
-            return ActivityEventKind.Error;
+            return new ActivityClassification(
+                ActivityEventKind.Error,
+                CodexDiagnostics.DescribeActivityError(string.Join(" ", values)));
         }
 
         if (values.Any(value => CompletionEvents.Contains(value)))
         {
-            return ActivityEventKind.Completed;
+            return new ActivityClassification(ActivityEventKind.Completed);
         }
 
         if (values.Any(IsActiveValue))
         {
-            return ActivityEventKind.Active;
+            return new ActivityClassification(ActivityEventKind.Active);
         }
 
-        return ActivityEventKind.Ignore;
+        return new ActivityClassification(ActivityEventKind.Ignore);
     }
 
     private static bool IsActiveValue(string value)
@@ -348,5 +357,11 @@ public sealed class CodexActivityDetector
         Error
     }
 
-    private readonly record struct ActivityEvent(ActivityEventKind Kind, DateTimeOffset Timestamp, string? SourceFile);
+    private readonly record struct ActivityClassification(ActivityEventKind Kind, string? Detail = null);
+
+    private readonly record struct ActivityEvent(
+        ActivityEventKind Kind,
+        DateTimeOffset Timestamp,
+        string? SourceFile,
+        string? Detail = null);
 }

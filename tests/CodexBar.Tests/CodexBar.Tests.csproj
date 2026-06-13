@@ -16,4 +16,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CodexBar\CodexBar.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Fixtures\*.*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

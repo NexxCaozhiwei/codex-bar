@@ -20,6 +20,7 @@ public sealed class MainViewModel : ObservableObject
     private Window? _mainWindow;
     private QuotaSnapshot _quota = QuotaSnapshot.Empty("尚未刷新。");
     private CodexActivitySnapshot _activity = new(CodexActivityStatus.Idle, DateTimeOffset.Now, "尚未刷新。");
+    private QuotaDisplayMode _quotaDisplayMode = QuotaDisplayMode.Remaining;
     private bool _isRefreshing;
 
     public MainViewModel(
@@ -92,9 +93,9 @@ public sealed class MainViewModel : ObservableObject
 
     public double WeeklyRemaining => _quota.Weekly?.RemainingPercent ?? 0;
 
-    public string FiveHourText => FormatQuota(_quota.FiveHour);
+    public string FiveHourText => QuotaDisplayFormatter.FormatSummary(_quota.FiveHour, _quotaDisplayMode, DateTimeOffset.Now);
 
-    public string WeeklyText => FormatQuota(_quota.Weekly);
+    public string WeeklyText => QuotaDisplayFormatter.FormatSummary(_quota.Weekly, _quotaDisplayMode, DateTimeOffset.Now);
 
     public string FiveHourDetails => FormatQuotaDetails(_quota.FiveHour);
 
@@ -106,7 +107,17 @@ public sealed class MainViewModel : ObservableObject
 
     public string DataSourceText => FormatDataSource(_quota.Source);
 
-    public string ErrorText => _quota.Error ?? "";
+    public string ErrorText
+    {
+        get
+        {
+            var errors = new[] { _activity.Status == CodexActivityStatus.Error ? _activity.Detail : null, _quota.Error }
+                .Where(error => !string.IsNullOrWhiteSpace(error))
+                .Distinct()
+                .ToArray();
+            return errors.Length == 0 ? "" : string.Join(Environment.NewLine, errors);
+        }
+    }
 
     public void AttachWindow(Window window)
     {
@@ -155,6 +166,15 @@ public sealed class MainViewModel : ObservableObject
     {
         var settings = new SettingsWindow(this) { Owner = _mainWindow };
         settings.ShowDialog();
+    }
+
+    public void ToggleQuotaDisplayMode()
+    {
+        _quotaDisplayMode = _quotaDisplayMode == QuotaDisplayMode.Remaining
+            ? QuotaDisplayMode.ResetCountdown
+            : QuotaDisplayMode.Remaining;
+        RaisePropertyChanged(nameof(FiveHourText));
+        RaisePropertyChanged(nameof(WeeklyText));
     }
 
     public void SaveSettings()
@@ -253,9 +273,6 @@ public sealed class MainViewModel : ObservableObject
             RaisePropertyChanged(property);
         }
     }
-
-    private static string FormatQuota(QuotaWindow? window)
-        => window is null ? "剩余 --%" : $"剩余 {window.RemainingPercent:0}%";
 
     private static string FormatQuotaDetails(QuotaWindow? window)
     {

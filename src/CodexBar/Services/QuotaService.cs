@@ -27,6 +27,7 @@ public sealed class QuotaService
     public async Task<QuotaSnapshot> ReadAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
         LastLocation = await _locator.LocateAsync(settings.CodexPath, cancellationToken).ConfigureAwait(false);
+        string? appServerError = null;
         if (LastLocation.Found)
         {
             var appServer = await _appServerClient
@@ -38,6 +39,7 @@ public sealed class QuotaService
                 return appServer;
             }
 
+            appServerError = appServer.Error;
             _logger.LogInformation("app-server 返回后回退到 session jsonl：{Error}", appServer.Error);
         }
 
@@ -47,6 +49,10 @@ public sealed class QuotaService
             return fallback;
         }
 
-        return QuotaSnapshot.Empty(LastLocation.Error ?? fallback.Error ?? "没有可用的额度数据。");
+        return QuotaSnapshot.Empty(CodexDiagnostics.DescribeQuotaUnavailable(
+            LastLocation.Error,
+            appServerError,
+            fallback.Error,
+            CodexDiagnostics.NoQuotaData));
     }
 }

@@ -79,6 +79,16 @@ public sealed class CodexActivityDetectorTests
     }
 
     [Fact]
+    public void AnonymizedJsonlCompletionFixtureMapsToCompleted()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines(TestFixtures.ReadJsonlNewestFirst("codex-session-completed.jsonl"));
+
+        Assert.Equal(CodexActivityStatus.Completed, snapshot.Status);
+        Assert.Contains("任务已完成", snapshot.Detail);
+    }
+
+    [Fact]
     public void WaitingForUserOlderThanWindowMapsToIdle()
     {
         var detector = CreateDetector();
@@ -122,6 +132,39 @@ public sealed class CodexActivityDetectorTests
         ]);
 
         Assert.Equal(CodexActivityStatus.Error, snapshot.Status);
+        Assert.Contains("网络异常", snapshot.Detail);
+    }
+
+    [Fact]
+    public void AnonymizedJsonlNetworkFixtureMapsToActionableError()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines(TestFixtures.ReadJsonlNewestFirst("codex-session-network-error.jsonl"));
+
+        Assert.Equal(CodexActivityStatus.Error, snapshot.Status);
+        Assert.Contains("网络异常", snapshot.Detail);
+        Assert.Contains("ECONNRESET", snapshot.Detail);
+    }
+
+    [Fact]
+    public void AuthenticationFailureMessageMapsToActionableError()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            JsonSerializer.Serialize(new
+            {
+                type = "event_msg",
+                timestamp = Now.AddSeconds(-5).ToString("O"),
+                payload = new
+                {
+                    type = "error",
+                    message = "authentication failed: login required"
+                }
+            })
+        ]);
+
+        Assert.Equal(CodexActivityStatus.Error, snapshot.Status);
+        Assert.Contains("认证已过期", snapshot.Detail);
     }
 
     private static CodexActivityDetector CreateDetector()

@@ -1,0 +1,1 @@
+{"type":"event_msg","timestamp":"2026-06-13T11:59:45Z","payload":{"type":"error","message":"fetch failed: ECONNRESET while connecting to api.openai.com","code":"econnreset"}}
