@@ -20,7 +20,7 @@ codex app-server --listen stdio://
     "clientInfo": {
       "name": "codex-bar",
       "title": "Codex Bar",
-      "version": "0.1.4"
+      "version": "0.1.5"
     },
     "capabilities": {
       "experimentalApi": true,

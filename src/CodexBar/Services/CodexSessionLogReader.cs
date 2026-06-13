@@ -25,6 +25,9 @@ public sealed class CodexSessionLogReader
     public Task<IReadOnlyList<string>> ReadRecentLinesAsync(int maxLines = 400, CancellationToken cancellationToken = default)
         => Task.Run(() => ReadRecentLines(maxLines, cancellationToken), cancellationToken);
 
+    public Task<IReadOnlyList<CodexSessionLogEntry>> ReadRecentLogEntriesAsync(int maxLines = 400, CancellationToken cancellationToken = default)
+        => Task.Run(() => ReadRecentLogEntries(maxLines, cancellationToken), cancellationToken);
+
     private QuotaSnapshot ReadLatestQuota(DateTimeOffset? newerThanAppServer, CancellationToken cancellationToken)
     {
         foreach (var file in GetCandidateFiles())
@@ -65,19 +68,25 @@ public sealed class CodexSessionLogReader
     }
 
     private IReadOnlyList<string> ReadRecentLines(int maxLines, CancellationToken cancellationToken)
+        => ReadRecentLogEntries(maxLines, cancellationToken).Select(entry => entry.Line).ToArray();
+
+    private IReadOnlyList<CodexSessionLogEntry> ReadRecentLogEntries(int maxLines, CancellationToken cancellationToken)
     {
-        var lines = new List<string>();
+        var entries = new List<CodexSessionLogEntry>();
         foreach (var file in GetCandidateFiles().Take(12))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            lines.AddRange(ReadTailLines(file).Take(maxLines - lines.Count));
-            if (lines.Count >= maxLines)
+            var fileLastWriteTime = new DateTimeOffset(file.LastWriteTimeUtc);
+            entries.AddRange(ReadTailLines(file)
+                .Take(maxLines - entries.Count)
+                .Select(line => new CodexSessionLogEntry(line, fileLastWriteTime, file.FullName)));
+            if (entries.Count >= maxLines)
             {
                 break;
             }
         }
 
-        return lines;
+        return entries;
     }
 
     private IReadOnlyList<FileInfo> GetCandidateFiles()
@@ -131,3 +140,8 @@ public sealed class CodexSessionLogReader
         }
     }
 }
+
+public sealed record CodexSessionLogEntry(
+    string Line,
+    DateTimeOffset? FileLastWriteTimeUtc = null,
+    string? SourceFile = null);
