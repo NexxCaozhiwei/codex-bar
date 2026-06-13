@@ -19,6 +19,7 @@
             CornerRadius="6"
             Padding="9,7"
             MouseLeftButtonDown="OnMouseLeftButtonDown"
+            MouseMove="OnMouseMove"
             MouseLeftButtonUp="OnMouseLeftButtonUp"
             MouseRightButtonUp="OnMouseRightButtonUp">
         <Grid VerticalAlignment="Center">
@@ -38,9 +39,9 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="Codex" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse Width="7" Height="7" Fill="{Binding RedLightBrush}" Margin="0,0,4,0" />
                     <Ellipse Width="7" Height="7" Fill="{Binding GreenLightBrush}" Margin="0,0,4,0" />
-                    <Ellipse Width="7" Height="7" Fill="{Binding BlueLightBrush}" />
+                    <Ellipse Width="7" Height="7" Fill="{Binding BlueLightBrush}" Margin="0,0,4,0" />
+                    <Ellipse Width="7" Height="7" Fill="{Binding RedLightBrush}" />
                 </StackPanel>
                 <TextBlock Grid.Column="4" Text="{Binding StatusText}" Foreground="{Binding StatusBrush}" FontSize="11" VerticalAlignment="Center" />
             </Grid>

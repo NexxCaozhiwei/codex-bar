@@ -3,7 +3,6 @@ using System.Windows.Threading;
 using CodexBar.Models;
 using CodexBar.Services;
 using Brush = System.Windows.Media.Brush;
-using Brushes = System.Windows.Media.Brushes;
 
 namespace CodexBar.ViewModels;
 
@@ -70,24 +69,13 @@ public sealed class MainViewModel : ObservableObject
 
     public string DetailStatusText => _activity.Detail;
 
-    public Brush StatusBrush => _activity.Status switch
-    {
-        CodexActivityStatus.Idle => Brushes.LimeGreen,
-        CodexActivityStatus.Working or CodexActivityStatus.AutoReviewing => Brushes.LimeGreen,
-        CodexActivityStatus.Completed => Brushes.DeepSkyBlue,
-        CodexActivityStatus.WaitingForUser => Brushes.Gold,
-        CodexActivityStatus.Unknown => Brushes.DarkGray,
-        CodexActivityStatus.Error => Brushes.OrangeRed,
-        _ => Brushes.IndianRed
-    };
+    public Brush StatusBrush => ActivityStatusPalette.StatusBrush(_activity.Status);
 
-    public Brush RedLightBrush => _activity.Status == CodexActivityStatus.Idle ? Brushes.IndianRed : Brushes.DimGray;
+    public Brush GreenLightBrush => ActivityStatusPalette.GreenLightBrush(_activity.Status);
 
-    public Brush GreenLightBrush => _activity.Status is CodexActivityStatus.Working or CodexActivityStatus.AutoReviewing or CodexActivityStatus.WaitingForUser
-        ? Brushes.LimeGreen
-        : Brushes.DimGray;
+    public Brush BlueLightBrush => ActivityStatusPalette.BlueLightBrush(_activity.Status);
 
-    public Brush BlueLightBrush => _activity.Status == CodexActivityStatus.Completed ? Brushes.DeepSkyBlue : Brushes.DimGray;
+    public Brush RedLightBrush => ActivityStatusPalette.RedLightBrush(_activity.Status);
 
     public double FiveHourRemaining => _quota.FiveHour?.RemainingPercent ?? 0;
 

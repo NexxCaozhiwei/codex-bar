@@ -2,13 +2,16 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using CodexBar.ViewModels;
+using WpfMouseEventArgs = System.Windows.Input.MouseEventArgs;
+using WpfPoint = System.Windows.Point;
 
 namespace CodexBar;
 
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
-    private bool _suppressNextClick;
+    private WpfPoint? _mouseDownPosition;
+    private bool _wasDragged;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -20,24 +23,39 @@ public partial class MainWindow : Window
 
     private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (!_viewModel.Settings.LockPosition && e.ClickCount == 1)
+        _mouseDownPosition = e.GetPosition(this);
+        _wasDragged = false;
+    }
+
+    private void OnMouseMove(object sender, WpfMouseEventArgs e)
+    {
+        if (_viewModel.Settings.LockPosition ||
+            e.LeftButton != MouseButtonState.Pressed ||
+            _mouseDownPosition is not { } start)
         {
-            var startLeft = Left;
-            var startTop = Top;
-            DragMove();
-            _viewModel.SaveWindowPosition();
-            _suppressNextClick =
-                Math.Abs(Left - startLeft) > SystemParameters.MinimumHorizontalDragDistance ||
-                Math.Abs(Top - startTop) > SystemParameters.MinimumVerticalDragDistance;
+            return;
         }
+
+        var current = e.GetPosition(this);
+        if (Math.Abs(current.X - start.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(current.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        _wasDragged = true;
+        _mouseDownPosition = null;
+        DragMove();
+        _viewModel.SaveWindowPosition();
     }
 
     private void OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         _viewModel.SaveWindowPosition();
-        if (_suppressNextClick)
+        _mouseDownPosition = null;
+        if (_wasDragged)
         {
-            _suppressNextClick = false;
+            _wasDragged = false;
             return;
         }
 
