@@ -33,7 +33,7 @@ public sealed class CodexAppServerClient : IDisposable
             {
                 await SendRequestAsync("initialize", new
                 {
-                    clientInfo = new { name = "codex-bar", title = "Codex Bar", version = "0.1.6" },
+                    clientInfo = new { name = "codex-bar", title = "Codex Bar", version = "0.1.7" },
                     capabilities = new { experimentalApi = true, optOutNotificationMethods = Array.Empty<string>() }
                 }, timeoutCts.Token).ConfigureAwait(false);
                 _initialized = true;
