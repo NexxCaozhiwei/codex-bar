@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Codex Bar 设置"
         Width="460"
-        Height="450"
-        MinHeight="450"
+        Height="492"
+        MinHeight="492"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Icon="Resources/CodexBar.ico"
@@ -25,6 +25,7 @@
                 <RowDefinition Height="34" />
                 <RowDefinition Height="42" />
                 <RowDefinition Height="42" />
+                <RowDefinition Height="42" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="150" />
@@ -42,8 +43,28 @@
             <TextBlock Grid.Row="5" Text="刷新间隔（秒）" Foreground="#9DA7B3" VerticalAlignment="Center" />
             <TextBox x:Name="RefreshBox" Grid.Row="5" Grid.Column="1" Height="26" VerticalContentAlignment="Center" />
 
-            <TextBlock Grid.Row="6" Text="界面语言" Foreground="#9DA7B3" VerticalAlignment="Center" />
-            <ComboBox x:Name="LanguageBox" Grid.Row="6" Grid.Column="1" Height="26">
+            <TextBlock Grid.Row="6" Text="不透明度" Foreground="#9DA7B3" VerticalAlignment="Center" />
+            <Grid Grid.Row="6" Grid.Column="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="52" />
+                </Grid.ColumnDefinitions>
+                <Slider x:Name="OpacitySlider"
+                        Minimum="20"
+                        Maximum="100"
+                        TickFrequency="5"
+                        IsSnapToTickEnabled="True"
+                        VerticalAlignment="Center"
+                        ValueChanged="OnOpacityChanged" />
+                <TextBlock x:Name="OpacityValueText"
+                           Grid.Column="1"
+                           Foreground="#F4F7FB"
+                           TextAlignment="Right"
+                           VerticalAlignment="Center" />
+            </Grid>
+
+            <TextBlock Grid.Row="7" Text="界面语言" Foreground="#9DA7B3" VerticalAlignment="Center" />
+            <ComboBox x:Name="LanguageBox" Grid.Row="7" Grid.Column="1" Height="26">
                 <ComboBoxItem Content="中文" Tag="zh" />
                 <ComboBoxItem Content="英文" Tag="en" />
             </ComboBox>

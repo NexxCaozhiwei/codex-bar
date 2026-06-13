@@ -71,6 +71,7 @@ public sealed class MainViewModel : ObservableObject
 
     public Brush StatusBrush => _activity.Status switch
     {
+        CodexActivityStatus.Idle => Brushes.LimeGreen,
         CodexActivityStatus.Working or CodexActivityStatus.AutoReviewing => Brushes.LimeGreen,
         CodexActivityStatus.Completed => Brushes.DeepSkyBlue,
         CodexActivityStatus.WaitingForUser => Brushes.Gold,
@@ -110,6 +111,7 @@ public sealed class MainViewModel : ObservableObject
     public void AttachWindow(Window window)
     {
         _mainWindow = window;
+        ApplyWindowVisuals();
         ConfigureTimer();
     }
 
@@ -158,11 +160,13 @@ public sealed class MainViewModel : ObservableObject
     public void SaveSettings()
     {
         Settings.RefreshIntervalSeconds = Math.Clamp(Settings.RefreshIntervalSeconds, 5, 3600);
+        Settings.OpacityPercent = Math.Clamp(Settings.OpacityPercent, 20, 100);
         _settingsService.Save(Settings);
         _startupService.SetEnabled(Settings.StartWithWindows);
         ConfigureTimer();
         if (_mainWindow is not null)
         {
+            ApplyWindowVisuals();
             _dockingService.Apply(_mainWindow, Settings);
         }
     }
@@ -215,6 +219,14 @@ public sealed class MainViewModel : ObservableObject
     }
 
     private async void OnTimerTick(object? sender, EventArgs e) => await RefreshAsync();
+
+    private void ApplyWindowVisuals()
+    {
+        if (_mainWindow is not null)
+        {
+            _mainWindow.Opacity = Math.Clamp(Settings.OpacityPercent, 20, 100) / 100d;
+        }
+    }
 
     private void RaiseAllDisplayProperties()
     {

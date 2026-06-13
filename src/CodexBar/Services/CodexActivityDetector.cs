@@ -45,7 +45,14 @@ public sealed class CodexActivityDetector
     {
         "turn_aborted",
         "thread_rolled_back",
-        "error"
+        "error",
+        "failed",
+        "failure",
+        "network_error",
+        "connection_error",
+        "timeout",
+        "timed_out",
+        "disconnected"
     };
 
     private readonly CodexSessionLogReader _logReader;
@@ -208,7 +215,7 @@ public sealed class CodexActivityDetector
             return ActivityEventKind.Waiting;
         }
 
-        if (values.Any(value => ErrorEvents.Contains(value)))
+        if (values.Any(IsErrorValue))
         {
             return ActivityEventKind.Error;
         }
@@ -237,6 +244,23 @@ public sealed class CodexActivityDetector
            value.Contains("permission", StringComparison.OrdinalIgnoreCase) ||
            value.Contains("waiting_for_user", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsErrorValue(string value)
+        => ErrorEvents.Contains(value) ||
+           value.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("failure", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("timed out", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("network", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("offline", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("disconnect", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("connection reset", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("fetch failed", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("econnreset", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("enotfound", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("etimedout", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("tls", StringComparison.OrdinalIgnoreCase);
+
     private static IEnumerable<string> EnumerateSemanticValues(JsonElement element)
     {
         if (element.ValueKind != JsonValueKind.Object)
@@ -244,7 +268,7 @@ public sealed class CodexActivityDetector
             yield break;
         }
 
-        foreach (var value in ReadStringProperties(element, "type", "event", "event_type", "kind", "method", "name", "status"))
+        foreach (var value in ReadStringProperties(element, "type", "event", "event_type", "kind", "method", "name", "status", "error", "message", "detail", "reason", "code", "error_type"))
         {
             yield return value;
         }

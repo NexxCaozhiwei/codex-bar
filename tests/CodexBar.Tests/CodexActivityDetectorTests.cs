@@ -104,6 +104,26 @@ public sealed class CodexActivityDetectorTests
         Assert.Equal("session.jsonl", snapshot.SourceFile);
     }
 
+    [Fact]
+    public void NetworkFailureMessageMapsToError()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            JsonSerializer.Serialize(new
+            {
+                type = "event_msg",
+                timestamp = Now.AddSeconds(-5).ToString("O"),
+                payload = new
+                {
+                    type = "error",
+                    message = "fetch failed: ECONNRESET"
+                }
+            })
+        ]);
+
+        Assert.Equal(CodexActivityStatus.Error, snapshot.Status);
+    }
+
     private static CodexActivityDetector CreateDetector()
     {
         var parser = new JsonQuotaParser();
