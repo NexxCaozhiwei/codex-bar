@@ -26,6 +26,7 @@ public sealed class QuotaService
 
     public async Task<QuotaSnapshot> ReadAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
+        var now = DateTimeOffset.Now;
         LastLocation = await _locator.LocateAsync(settings.CodexPath, cancellationToken).ConfigureAwait(false);
         string? appServerError = null;
         if (LastLocation.Found)
@@ -36,7 +37,7 @@ public sealed class QuotaService
 
             if (appServer.Source == QuotaDataSource.AppServer && (appServer.FiveHour is not null || appServer.Weekly is not null))
             {
-                return appServer;
+                return QuotaSnapshotNormalizer.NormalizeExpiredWindows(appServer, now);
             }
 
             appServerError = appServer.Error;
@@ -46,13 +47,13 @@ public sealed class QuotaService
         var fallback = await _sessionLogReader.ReadLatestQuotaAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         if (fallback.Source == QuotaDataSource.JsonlFallback)
         {
-            return fallback;
+            return QuotaSnapshotNormalizer.NormalizeExpiredWindows(fallback, now);
         }
 
-        return QuotaSnapshot.Empty(CodexDiagnostics.DescribeQuotaUnavailable(
+        return QuotaSnapshotNormalizer.NormalizeExpiredWindows(QuotaSnapshot.Empty(CodexDiagnostics.DescribeQuotaUnavailable(
             LastLocation.Error,
             appServerError,
             fallback.Error,
-            CodexDiagnostics.NoQuotaData));
+            CodexDiagnostics.NoQuotaData)), now);
     }
 }

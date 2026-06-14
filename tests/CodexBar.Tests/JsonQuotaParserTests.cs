@@ -142,6 +142,21 @@ public sealed class JsonQuotaParserTests
     }
 
     [Fact]
+    public void ParsesCurrentJsonlTokenCountShape()
+    {
+        var line = """
+        {"timestamp":"2026-06-14T05:58:43.589Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":49287464},"last_token_usage":{"total_tokens":167234},"model_context_window":258400},"rate_limits":{"limit_id":"codex","limit_name":null,"primary":{"used_percent":7.0,"window_minutes":300,"resets_at":1781434483},"secondary":{"used_percent":71.0,"window_minutes":10080,"resets_at":1781761289},"credits":null,"individual_limit":null,"plan_type":"plus","rate_limit_reached_type":null}}}
+        """;
+
+        var snapshot = _parser.ParseJsonlTokenCountLine(line);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(93, snapshot!.FiveHour?.RemainingPercent);
+        Assert.Equal(29, snapshot.Weekly?.RemainingPercent);
+        Assert.Equal(new DateTimeOffset(2026, 6, 14, 10, 54, 43, TimeSpan.Zero), snapshot.FiveHour?.ResetsAt);
+    }
+
+    [Fact]
     public void ParsesAnonymizedJsonlQuotaFixture()
     {
         var snapshot = TestFixtures.ReadJsonlNewestFirst("codex-session-completed.jsonl")

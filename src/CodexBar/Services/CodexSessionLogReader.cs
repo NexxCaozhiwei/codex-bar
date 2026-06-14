@@ -32,6 +32,9 @@ public sealed class CodexSessionLogReader
     private QuotaSnapshot ReadLatestQuota(DateTimeOffset? newerThanAppServer, CancellationToken cancellationToken)
     {
         string? readError = null;
+        QuotaSnapshot? latestSnapshot = null;
+        DateTimeOffset? latestEffectiveTime = null;
+
         foreach (var file in GetCandidateFiles())
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -64,7 +67,13 @@ public sealed class CodexSessionLogReader
                         continue;
                     }
 
-                    return snapshot with { LastRefresh = effectiveTime, Source = QuotaDataSource.JsonlFallback };
+                    if (latestEffectiveTime is null || effectiveTime > latestEffectiveTime.Value)
+                    {
+                        latestEffectiveTime = effectiveTime;
+                        latestSnapshot = snapshot with { LastRefresh = effectiveTime, Source = QuotaDataSource.JsonlFallback };
+                    }
+
+                    break;
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
@@ -72,6 +81,11 @@ public sealed class CodexSessionLogReader
                 _logger.LogWarning(ex, "读取 Codex session 文件失败：{File}", file.FullName);
                 readError ??= CodexDiagnostics.DescribeSessionLogFailure(ex.Message);
             }
+        }
+
+        if (latestSnapshot is not null)
+        {
+            return latestSnapshot;
         }
 
         return QuotaSnapshot.Empty(_lastScanError ?? readError ?? CodexDiagnostics.NoTokenCount);
