@@ -89,6 +89,59 @@ public sealed class MainViewModel : ObservableObject
 
     public string WeeklyDetails => FormatQuotaDetails(_quota.Weekly);
 
+    public IReadOnlyList<QuotaDisplayRow> QuotaRows
+    {
+        get
+        {
+            var rows = DisplayWindows()
+                .Select(window => new QuotaDisplayRow(
+                    window.Label,
+                    window.RemainingPercent,
+                    QuotaDisplayFormatter.FormatSummary(window, _quotaDisplayMode, DateTimeOffset.Now),
+                    FormatQuotaDetails(window)))
+                .ToArray();
+
+            if (rows.Length > 0)
+            {
+                return rows;
+            }
+
+            var summary = _quota.Credits?.Unlimited == true ? "无限" : "暂无窗口";
+            return [new QuotaDisplayRow("额度", _quota.Credits?.Unlimited == true ? 100 : 0, summary, summary)];
+        }
+    }
+
+    public string QuotaAccountDetails
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(_quota.PlanType))
+            {
+                parts.Add($"方案：{_quota.PlanType}");
+            }
+
+            if (_quota.Credits is { } credits)
+            {
+                parts.Add(credits.Unlimited
+                    ? "追加额度：无限"
+                    : $"追加额度：{(credits.HasCredits ? credits.Balance ?? "可用" : "不可用")}");
+            }
+
+            if (_quota.AvailableResetCredits is { } resetCredits)
+            {
+                parts.Add($"额度重置券：{resetCredits}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(_quota.RateLimitReachedType))
+            {
+                parts.Add($"限制状态：{_quota.RateLimitReachedType}");
+            }
+
+            return parts.Count == 0 ? "额度账户信息：暂无" : string.Join("；", parts);
+        }
+    }
+
     public string LastRefreshText => _quota.LastRefresh.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
 
     public string CodexPathText => _quotaService.LastLocation.Path ?? _quotaService.LastLocation.Error ?? "未知";
@@ -135,7 +188,11 @@ public sealed class MainViewModel : ObservableObject
             _quota = await _quotaService.ReadAsync(Settings);
             _activity = await _activityDetector.DetectAsync();
             RaiseAllDisplayProperties();
-            _trayService.UpdateText($"Codex Bar - {StatusText} - 5h 剩余 {FiveHourRemaining:0}%");
+            var primaryWindow = DisplayWindows().FirstOrDefault();
+            var quotaText = primaryWindow is null
+                ? (_quota.Credits?.Unlimited == true ? "额度无限" : "额度不可用")
+                : $"{primaryWindow.Label} 剩余 {primaryWindow.RemainingPercent:0}%";
+            _trayService.UpdateText($"Codex Bar - {StatusText} - {quotaText}");
         }
         finally
         {
@@ -163,6 +220,7 @@ public sealed class MainViewModel : ObservableObject
             : QuotaDisplayMode.Remaining;
         RaisePropertyChanged(nameof(FiveHourText));
         RaisePropertyChanged(nameof(WeeklyText));
+        RaisePropertyChanged(nameof(QuotaRows));
     }
 
     public void SaveSettings()
@@ -252,6 +310,8 @@ public sealed class MainViewModel : ObservableObject
             nameof(WeeklyText),
             nameof(FiveHourDetails),
             nameof(WeeklyDetails),
+            nameof(QuotaRows),
+            nameof(QuotaAccountDetails),
             nameof(LastRefreshText),
             nameof(CodexPathText),
             nameof(DataSourceText),
@@ -273,6 +333,21 @@ public sealed class MainViewModel : ObservableObject
         return $"{window.Label}：已用 {window.UsedPercent:0.##}%，剩余 {window.RemainingPercent:0.##}%，重置时间 {reset}";
     }
 
+    private IReadOnlyList<QuotaWindow> DisplayWindows()
+    {
+        if (_quota.Windows.Count > 0)
+        {
+            return _quota.Windows;
+        }
+
+        return new[] { _quota.FiveHour, _quota.Weekly }
+            .Where(window => window is not null)
+            .Cast<QuotaWindow>()
+            .DistinctBy(window => (window.WindowDurationMins, window.LimitId))
+            .OrderBy(window => window.WindowDurationMins)
+            .ToArray();
+    }
+
     private static string FormatStatus(CodexActivityStatus status) => status switch
     {
         CodexActivityStatus.Idle => "空闲",
@@ -292,3 +367,9 @@ public sealed class MainViewModel : ObservableObject
         _ => "无数据"
     };
 }
+
+public sealed record QuotaDisplayRow(
+    string Label,
+    double RemainingPercent,
+    string Summary,
+    string Details);

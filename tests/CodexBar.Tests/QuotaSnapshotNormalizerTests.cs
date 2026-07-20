@@ -42,6 +42,23 @@ public sealed class QuotaSnapshotNormalizerTests
         Assert.Equal(Now.AddHours(4), normalized.FiveHour?.ResetsAt);
     }
 
+    [Fact]
+    public void DynamicWeeklyWindowIsNormalizedWithoutCreatingFiveHourWindow()
+    {
+        var weekly = new QuotaWindow("7d", 10080, 45, 55, Now.AddMinutes(-1), "plus", "codex");
+        var snapshot = new QuotaSnapshot(null, weekly, QuotaDataSource.AppServer, Now)
+        {
+            Windows = [weekly]
+        };
+
+        var normalized = QuotaSnapshotNormalizer.NormalizeExpiredWindows(snapshot, Now);
+
+        Assert.Null(normalized.FiveHour);
+        Assert.Equal(100, normalized.Weekly?.RemainingPercent);
+        Assert.Single(normalized.Windows);
+        Assert.Equal(100, normalized.Windows[0].RemainingPercent);
+    }
+
     private static QuotaWindow Window(double usedPercent, DateTimeOffset resetsAt)
         => new("5h", 300, usedPercent, 100 - usedPercent, resetsAt, "plus", "codex");
 }

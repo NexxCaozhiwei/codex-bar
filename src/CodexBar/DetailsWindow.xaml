@@ -15,8 +15,14 @@
         </Grid.RowDefinitions>
         <TextBlock Text="Codex Bar 详情" FontSize="18" FontWeight="SemiBold" Foreground="#F4F7FB" />
         <StackPanel Grid.Row="1" Margin="0,14,0,0">
-            <TextBlock Text="{Binding FiveHourDetails}" Foreground="#F4F7FB" Margin="0,0,0,8" />
-            <TextBlock Text="{Binding WeeklyDetails}" Foreground="#F4F7FB" Margin="0,0,0,8" />
+            <ItemsControl ItemsSource="{Binding QuotaRows}" Margin="0,0,0,4">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Details}" Foreground="#F4F7FB" Margin="0,0,0,8" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="{Binding QuotaAccountDetails}" Foreground="#9DA7B3" TextWrapping="Wrap" Margin="0,0,0,8" />
             <TextBlock Text="{Binding StatusText, StringFormat=状态：{0}}" Foreground="#F4F7FB" Margin="0,0,0,8" />
             <TextBlock Text="{Binding DetailStatusText}" Foreground="#9DA7B3" TextWrapping="Wrap" Margin="0,0,0,8" />
             <TextBlock Text="{Binding LastRefreshText, StringFormat=最近刷新：{0}}" Foreground="#9DA7B3" Margin="0,0,0,8" />

@@ -14,26 +14,23 @@ public sealed class JsonQuotaParser
     public QuotaSnapshot ParseAppServerResponse(JsonElement root)
     {
         var payload = root.TryGetProperty("result", out var result) ? result : root;
-        var windows = new List<QuotaWindow>();
-
         if (TryGetByPath(payload, ["rateLimitsByLimitId", "codex"], out var codexLimits))
         {
-            TryAddNamedWindow(codexLimits, "primary", windows);
-            TryAddNamedWindow(codexLimits, "secondary", windows);
+            return ParseLimitSnapshot(
+                codexLimits,
+                QuotaDataSource.AppServer,
+                ReadAvailableResetCredits(payload));
         }
 
         if (TryGetByPath(payload, ["rateLimits"], out var rateLimits))
         {
-            TryAddNamedWindow(rateLimits, "primary", windows);
-            TryAddNamedWindow(rateLimits, "secondary", windows);
+            return ParseLimitSnapshot(
+                rateLimits,
+                QuotaDataSource.AppServer,
+                ReadAvailableResetCredits(payload));
         }
 
-        if (windows.Count == 0)
-        {
-            return QuotaSnapshot.Empty("app-server 响应中没有找到 rateLimits 数据。");
-        }
-
-        return BuildSnapshot(windows, QuotaDataSource.AppServer, null);
+        return QuotaSnapshot.Empty("app-server 响应中没有找到 rateLimits 数据。");
     }
 
     public QuotaSnapshot? ParseJsonlTokenCountLine(string line)
@@ -59,17 +56,9 @@ public sealed class JsonQuotaParser
             return null;
         }
 
-        var windows = new List<QuotaWindow>();
-        TryAddNamedWindow(rateLimits, "primary", windows);
-        TryAddNamedWindow(rateLimits, "secondary", windows);
-
-        if (windows.Count == 0)
-        {
-            return null;
-        }
-
         var timestamp = ReadDateTime(root, "timestamp") ?? DateTimeOffset.Now;
-        return BuildSnapshot(windows, QuotaDataSource.JsonlFallback, null, timestamp);
+        var snapshot = ParseLimitSnapshot(rateLimits, QuotaDataSource.JsonlFallback, null, timestamp);
+        return snapshot.HasQuotaData ? snapshot : null;
     }
 
     public static string LabelForWindow(int minutes) => minutes switch
@@ -87,35 +76,86 @@ public sealed class JsonQuotaParser
         IReadOnlyCollection<QuotaWindow> windows,
         QuotaDataSource source,
         string? error,
-        DateTimeOffset? lastRefresh = null)
+        DateTimeOffset? lastRefresh = null,
+        QuotaCredits? credits = null,
+        int? availableResetCredits = null,
+        string? planType = null,
+        string? limitId = null,
+        string? rateLimitReachedType = null)
     {
-        QuotaWindow? fiveHour = windows
+        var distinctWindows = windows
+            .GroupBy(window => (window.WindowDurationMins, window.LimitId))
+            .Select(group => group.OrderByDescending(window => window.ResetsAt).First())
+            .OrderBy(window => window.WindowDurationMins)
+            .ToArray();
+
+        QuotaWindow? fiveHour = distinctWindows
             .Where(window => window.WindowDurationMins == 300)
             .OrderByDescending(window => window.ResetsAt)
             .FirstOrDefault();
 
-        QuotaWindow? weekly = windows
+        QuotaWindow? weekly = distinctWindows
             .Where(window => window.WindowDurationMins == 10080)
             .OrderByDescending(window => window.ResetsAt)
             .FirstOrDefault();
 
-        fiveHour ??= windows.OrderBy(window => window.WindowDurationMins).FirstOrDefault();
-        weekly ??= windows.OrderByDescending(window => window.WindowDurationMins).FirstOrDefault(window => window != fiveHour);
-
-        return new QuotaSnapshot(fiveHour, weekly, source, lastRefresh ?? DateTimeOffset.Now, error);
+        return new QuotaSnapshot(fiveHour, weekly, source, lastRefresh ?? DateTimeOffset.Now, error)
+        {
+            Windows = distinctWindows,
+            Credits = credits,
+            AvailableResetCredits = availableResetCredits,
+            PlanType = planType,
+            LimitId = limitId,
+            RateLimitReachedType = rateLimitReachedType
+        };
     }
 
-    private static void TryAddNamedWindow(JsonElement parent, string propertyName, ICollection<QuotaWindow> windows)
+    private static QuotaSnapshot ParseLimitSnapshot(
+        JsonElement rateLimits,
+        QuotaDataSource source,
+        int? availableResetCredits,
+        DateTimeOffset? lastRefresh = null)
+    {
+        var planType = ReadString(rateLimits, "planType") ?? ReadString(rateLimits, "plan_type");
+        var limitId = ReadString(rateLimits, "limitId") ?? ReadString(rateLimits, "limit_id");
+        var rateLimitReachedType = ReadString(rateLimits, "rateLimitReachedType")
+            ?? ReadString(rateLimits, "rate_limit_reached_type");
+        var windows = new List<QuotaWindow>();
+        TryAddNamedWindow(rateLimits, "primary", windows, planType, limitId);
+        TryAddNamedWindow(rateLimits, "secondary", windows, planType, limitId);
+
+        return BuildSnapshot(
+            windows,
+            source,
+            windows.Count == 0 ? "额度响应中没有可显示的时间窗口。" : null,
+            lastRefresh,
+            ReadCredits(rateLimits),
+            availableResetCredits,
+            planType,
+            limitId,
+            rateLimitReachedType);
+    }
+
+    private static void TryAddNamedWindow(
+        JsonElement parent,
+        string propertyName,
+        ICollection<QuotaWindow> windows,
+        string? inheritedPlanType,
+        string? inheritedLimitId)
     {
         if (parent.ValueKind == JsonValueKind.Object &&
             parent.TryGetProperty(propertyName, out var window) &&
-            TryParseWindow(window, out var quotaWindow))
+            TryParseWindow(window, inheritedPlanType, inheritedLimitId, out var quotaWindow))
         {
             windows.Add(quotaWindow);
         }
     }
 
-    private static bool TryParseWindow(JsonElement element, out QuotaWindow window)
+    private static bool TryParseWindow(
+        JsonElement element,
+        string? inheritedPlanType,
+        string? inheritedLimitId,
+        out QuotaWindow window)
     {
         window = default!;
         var minutes = ReadInt(element, "windowDurationMins")
@@ -138,8 +178,8 @@ public sealed class JsonQuotaParser
         var remaining = Math.Clamp(remainingPercent ?? 100d - usedPercent!.Value, 0d, 100d);
         var used = Math.Clamp(usedPercent ?? 100d - remaining, 0d, 100d);
         var resetsAt = ReadDateTime(element, "resetsAt") ?? ReadDateTime(element, "resets_at");
-        var planType = ReadString(element, "planType") ?? ReadString(element, "plan_type");
-        var limitId = ReadString(element, "limitId") ?? ReadString(element, "limit_id");
+        var planType = ReadString(element, "planType") ?? ReadString(element, "plan_type") ?? inheritedPlanType;
+        var limitId = ReadString(element, "limitId") ?? ReadString(element, "limit_id") ?? inheritedLimitId;
 
         window = new QuotaWindow(
             LabelForWindow(minutes),
@@ -151,6 +191,24 @@ public sealed class JsonQuotaParser
             limitId);
         return true;
     }
+
+    private static QuotaCredits? ReadCredits(JsonElement rateLimits)
+    {
+        if (!TryGetByPath(rateLimits, ["credits"], out var credits) || credits.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var hasCredits = ReadBool(credits, "hasCredits") ?? ReadBool(credits, "has_credits") ?? false;
+        var unlimited = ReadBool(credits, "unlimited") ?? false;
+        var balance = ReadString(credits, "balance");
+        return new QuotaCredits(hasCredits, unlimited, balance);
+    }
+
+    private static int? ReadAvailableResetCredits(JsonElement payload)
+        => TryGetByPath(payload, ["rateLimitResetCredits", "availableCount"], out var count)
+            ? ReadIntValue(count)
+            : null;
 
     private static bool TryGetByPath(JsonElement root, IReadOnlyList<string> path, out JsonElement element)
     {
@@ -207,6 +265,31 @@ public sealed class JsonQuotaParser
         }
 
         return double.TryParse(value.ToString(), out number) ? number : null;
+    }
+
+    private static bool? ReadBool(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            return value.GetBoolean();
+        }
+
+        return bool.TryParse(value.ToString(), out var parsed) ? parsed : null;
+    }
+
+    private static int? ReadIntValue(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+        {
+            return number;
+        }
+
+        return int.TryParse(value.ToString(), out number) ? number : null;
     }
 
     private static DateTimeOffset? ReadDateTime(JsonElement element, string propertyName)

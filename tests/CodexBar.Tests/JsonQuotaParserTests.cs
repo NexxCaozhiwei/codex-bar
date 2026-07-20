@@ -74,6 +74,48 @@ public sealed class JsonQuotaParserTests
     }
 
     [Fact]
+    public void ParsesWeeklyOnlySchemaWithoutInventingFiveHourWindow()
+    {
+        var json = """
+        {
+          "id": 2,
+          "result": {
+            "rateLimits": {
+              "limitId": "codex",
+              "primary": { "windowDurationMins": 10080, "usedPercent": 2, "resetsAt": 1785150766 },
+              "secondary": null,
+              "credits": { "hasCredits": false, "unlimited": false, "balance": "0" },
+              "planType": "plus",
+              "rateLimitReachedType": null
+            },
+            "rateLimitsByLimitId": {
+              "codex": {
+                "limitId": "codex",
+                "primary": { "windowDurationMins": 10080, "usedPercent": 2, "resetsAt": 1785150766 },
+                "secondary": null,
+                "credits": { "hasCredits": false, "unlimited": false, "balance": "0" },
+                "planType": "plus",
+                "rateLimitReachedType": null
+              }
+            },
+            "rateLimitResetCredits": { "availableCount": 3, "credits": [] }
+          }
+        }
+        """;
+
+        var snapshot = _parser.ParseAppServerResponse(json);
+
+        Assert.Null(snapshot.FiveHour);
+        Assert.Equal("7d", snapshot.Weekly?.Label);
+        Assert.Equal(98, snapshot.Weekly?.RemainingPercent);
+        Assert.Single(snapshot.Windows);
+        Assert.Equal("plus", snapshot.PlanType);
+        Assert.Equal("plus", snapshot.Weekly?.PlanType);
+        Assert.False(snapshot.Credits?.HasCredits);
+        Assert.Equal(3, snapshot.AvailableResetCredits);
+    }
+
+    [Fact]
     public void ParsesAnonymizedAppServerFixture()
     {
         var snapshot = _parser.ParseAppServerResponse(TestFixtures.ReadText("app-server-rate-limits.json"));
@@ -154,6 +196,22 @@ public sealed class JsonQuotaParserTests
         Assert.Equal(93, snapshot!.FiveHour?.RemainingPercent);
         Assert.Equal(29, snapshot.Weekly?.RemainingPercent);
         Assert.Equal(new DateTimeOffset(2026, 6, 14, 10, 54, 43, TimeSpan.Zero), snapshot.FiveHour?.ResetsAt);
+    }
+
+    [Fact]
+    public void ParsesWeeklyOnlyJsonlShape()
+    {
+        var line = """
+        {"timestamp":"2026-07-20T11:15:24.704Z","type":"event_msg","payload":{"type":"token_count","rate_limits":{"limit_id":"codex","primary":{"used_percent":1.0,"window_minutes":10080,"resets_at":1785150766},"secondary":null,"credits":{"has_credits":false,"unlimited":false,"balance":"0"},"plan_type":"plus","rate_limit_reached_type":null}}}
+        """;
+
+        var snapshot = _parser.ParseJsonlTokenCountLine(line);
+
+        Assert.NotNull(snapshot);
+        Assert.Null(snapshot!.FiveHour);
+        Assert.Equal("7d", snapshot.Weekly?.Label);
+        Assert.Single(snapshot.Windows);
+        Assert.Equal(99, snapshot.Windows[0].RemainingPercent);
     }
 
     [Fact]

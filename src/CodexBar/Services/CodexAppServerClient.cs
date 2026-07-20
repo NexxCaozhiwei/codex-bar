@@ -36,6 +36,7 @@ public sealed class CodexAppServerClient : IDisposable
                     clientInfo = new { name = "codex-bar", title = "Codex Bar", version = "0.1.8" },
                     capabilities = new { experimentalApi = true, optOutNotificationMethods = Array.Empty<string>() }
                 }, timeoutCts.Token).ConfigureAwait(false);
+                await SendNotificationAsync("initialized", null, timeoutCts.Token, includeParams: false).ConfigureAwait(false);
                 _initialized = true;
             }
 
@@ -53,6 +54,32 @@ public sealed class CodexAppServerClient : IDisposable
         {
             _gate.Release();
         }
+    }
+
+    private async Task SendNotificationAsync(
+        string method,
+        object? parameters,
+        CancellationToken cancellationToken,
+        bool includeParams = true)
+    {
+        if (_process?.StandardInput is null)
+        {
+            throw new InvalidOperationException("app-server 进程未运行。");
+        }
+
+        var notification = new Dictionary<string, object?>
+        {
+            ["method"] = method
+        };
+
+        if (includeParams)
+        {
+            notification["params"] = parameters;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await _process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(notification)).ConfigureAwait(false);
+        await _process.StandardInput.FlushAsync().ConfigureAwait(false);
     }
 
     private async Task<string> SendRequestAsync(string method, object? parameters, CancellationToken cancellationToken, bool includeParams = true)

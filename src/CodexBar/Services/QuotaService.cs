@@ -35,7 +35,7 @@ public sealed class QuotaService
                 .ReadQuotaAsync(LastLocation.Path!, TimeSpan.FromSeconds(3), cancellationToken)
                 .ConfigureAwait(false);
 
-            if (appServer.Source == QuotaDataSource.AppServer && (appServer.FiveHour is not null || appServer.Weekly is not null))
+            if (appServer.Source == QuotaDataSource.AppServer && appServer.HasQuotaData)
             {
                 return QuotaSnapshotNormalizer.NormalizeExpiredWindows(appServer, now);
             }

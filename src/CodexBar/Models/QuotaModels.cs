@@ -16,6 +16,11 @@ public sealed record QuotaWindow(
     string? PlanType,
     string? LimitId);
 
+public sealed record QuotaCredits(
+    bool HasCredits,
+    bool Unlimited,
+    string? Balance);
+
 public sealed record QuotaSnapshot(
     QuotaWindow? FiveHour,
     QuotaWindow? Weekly,
@@ -23,6 +28,20 @@ public sealed record QuotaSnapshot(
     DateTimeOffset LastRefresh,
     string? Error = null)
 {
+    public IReadOnlyList<QuotaWindow> Windows { get; init; } = [];
+
+    public QuotaCredits? Credits { get; init; }
+
+    public int? AvailableResetCredits { get; init; }
+
+    public string? PlanType { get; init; }
+
+    public string? LimitId { get; init; }
+
+    public string? RateLimitReachedType { get; init; }
+
+    public bool HasQuotaData => Windows.Count > 0 || Credits is not null || AvailableResetCredits is not null;
+
     public static QuotaSnapshot Empty(string? error = null)
         => new(null, null, QuotaDataSource.None, DateTimeOffset.Now, error);
 }

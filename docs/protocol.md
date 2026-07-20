@@ -30,6 +30,14 @@ codex app-server --listen stdio://
 }
 ```
 
+收到初始化响应后，客户端必须发送不带 `id` 和 `params` 的通知：
+
+```json
+{
+  "method": "initialized"
+}
+```
+
 读取额度：
 
 ```json
@@ -47,6 +55,15 @@ codex app-server --listen stdio://
 - `result.rateLimitsByLimitId.codex.secondary`
 - `result.rateLimits.primary`
 - `result.rateLimits.secondary`
+
+`primary` 和 `secondary` 是协议槽位，不代表固定的 5h / 7d。Codex Bar 使用窗口自身的
+`windowDurationMins` 生成标签，并隐藏值为 `null` 的槽位。响应还可能包含：
+
+- `result.rateLimits.credits`
+- `result.rateLimits.individualLimit`
+- `result.rateLimits.rateLimitReachedType`
+- `result.rateLimitResetCredits.availableCount`
+- `account/rateLimits/updated` 稀疏更新通知
 
 支持的字段别名：
 

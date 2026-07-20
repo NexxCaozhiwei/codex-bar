@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Codex Bar"
         Width="240"
-        Height="86"
         MinWidth="230"
-        MinHeight="78"
+        MinHeight="58"
+        SizeToContent="Height"
         ResizeMode="NoResize"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -25,8 +25,7 @@
         <Grid VerticalAlignment="Center">
             <Grid.RowDefinitions>
                 <RowDefinition Height="20" />
-                <RowDefinition Height="20" />
-                <RowDefinition Height="20" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0">
@@ -46,27 +45,22 @@
                 <TextBlock Grid.Column="4" Text="{Binding StatusText}" Foreground="{Binding StatusBrush}" FontSize="11" VerticalAlignment="Center" />
             </Grid>
 
-            <Grid Grid.Row="1">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="25" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="62" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="5h" Foreground="{StaticResource MutedBrush}" FontSize="10" VerticalAlignment="Center" />
-                <ProgressBar Grid.Column="1" Style="{StaticResource QuotaProgressBarStyle}" Minimum="0" Maximum="100" Value="{Binding FiveHourRemaining, Mode=OneWay}" Foreground="#2FBF71" Background="{StaticResource TrackBrush}" />
-                <TextBlock Grid.Column="2" Text="{Binding FiveHourText}" Foreground="{StaticResource TextBrush}" FontSize="10" TextAlignment="Right" VerticalAlignment="Center" />
-            </Grid>
-
-            <Grid Grid.Row="2">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="25" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="62" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="7d" Foreground="{StaticResource MutedBrush}" FontSize="10" VerticalAlignment="Center" />
-                <ProgressBar Grid.Column="1" Style="{StaticResource QuotaProgressBarStyle}" Minimum="0" Maximum="100" Value="{Binding WeeklyRemaining, Mode=OneWay}" Foreground="#3DA5FF" Background="{StaticResource TrackBrush}" />
-                <TextBlock Grid.Column="2" Text="{Binding WeeklyText}" Foreground="{StaticResource TextBrush}" FontSize="10" TextAlignment="Right" VerticalAlignment="Center" />
-            </Grid>
+            <ItemsControl Grid.Row="1" ItemsSource="{Binding QuotaRows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Height="20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="25" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="62" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Label}" Foreground="{StaticResource MutedBrush}" FontSize="10" VerticalAlignment="Center" />
+                            <ProgressBar Grid.Column="1" Style="{StaticResource QuotaProgressBarStyle}" Minimum="0" Maximum="100" Value="{Binding RemainingPercent, Mode=OneWay}" Foreground="#3DA5FF" Background="{StaticResource TrackBrush}" />
+                            <TextBlock Grid.Column="2" Text="{Binding Summary}" Foreground="{StaticResource TextBrush}" FontSize="10" TextAlignment="Right" VerticalAlignment="Center" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </Grid>
     </Border>
 </Window>

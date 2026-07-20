@@ -14,6 +14,9 @@ Codex Bar 使用 Windows 原生 WPF 外壳，并用接近 MVVM 的方式组织�
 - `StartupService`：当前用户开机启动注册。
 - `WindowDockingService`：任务栏附近定位。
 
+额度窗口按 `windowDurationMins` 动态生成。`primary` / `secondary` 只视为协议槽位；某个槽位为
+`null` 时不创建占位行，也不会把另一个窗口复制成缺失的 5h 或 7d 数据。
+
 ## 状态映射
 
 - 灯位顺序固定为绿灯、蓝灯、红灯。
