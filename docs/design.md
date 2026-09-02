@@ -34,6 +34,8 @@ Reducer 的优先级从高到低为：`Error`、`WaitingApproval`、`WaitingUser
 `Reviewing`、`RunningCommand`、`Editing`、`Thinking`。只有顶层生命周期类型为 `task_complete` 或
 `turn_completed` 的事件才是任务完成终结事件，可以结束等待态；工具或 item 的 `status: completed`
 只表示该局部操作结束。
+同样，只有 `turn_aborted`、`thread_rolled_back`、`task_failed`、`turn_failed` 或顶层 `error`
+等明确任务级事件才进入 `Error`；工具调用或 item 内部的 `status: failed` 只表示局部工具失败，后续工作事件可立即接管状态。
 `task_started`、`approval_granted`、`input_provided` 等显式恢复事件可以开始或恢复工作。
 
 - 没有显式任务开始事件的工作态，60 秒没有新活动后恢复为 `Idle`。

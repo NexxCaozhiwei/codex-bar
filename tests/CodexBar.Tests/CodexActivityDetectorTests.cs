@@ -108,6 +108,118 @@ public sealed class CodexActivityDetectorTests
     }
 
     [Fact]
+    public void FailedToolCallRemainsRunningCommand()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            JsonSerializer.Serialize(new
+            {
+                type = "response_item",
+                timestamp = Now.AddSeconds(-5).ToString("O"),
+                item = new
+                {
+                    type = "custom_tool_call",
+                    name = "browser_read",
+                    status = "failed",
+                    arguments = "{}"
+                }
+            })
+        ]);
+
+        Assert.Equal(CodexActivityStatus.RunningCommand, snapshot.Status);
+    }
+
+    [Fact]
+    public void WorkingEventImmediatelyRecoversAfterFailedToolCall()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            Event("reasoning", Now.AddSeconds(-5)),
+            JsonSerializer.Serialize(new
+            {
+                type = "response_item",
+                timestamp = Now.AddSeconds(-20).ToString("O"),
+                item = new
+                {
+                    type = "custom_tool_call",
+                    name = "browser_read",
+                    status = "failed",
+                    arguments = "{}"
+                }
+            })
+        ]);
+
+        Assert.Equal(CodexActivityStatus.Thinking, snapshot.Status);
+    }
+
+    [Fact]
+    public void FailedCompletedCommandItemRemainsRunningCommand()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            JsonSerializer.Serialize(new
+            {
+                type = "event_msg",
+                timestamp = Now.AddSeconds(-5).ToString("O"),
+                payload = new
+                {
+                    type = "item_completed",
+                    item = new
+                    {
+                        type = "CommandExecution",
+                        status = "failed",
+                        command = new[] { "pwsh.exe", "-Command", "exit 1" }
+                    }
+                }
+            })
+        ]);
+
+        Assert.Equal(CodexActivityStatus.RunningCommand, snapshot.Status);
+    }
+
+    [Fact]
+    public void FailedMcpToolItemDoesNotBlockFollowingWork()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            Event("reasoning", Now.AddSeconds(-5)),
+            JsonSerializer.Serialize(new
+            {
+                type = "event_msg",
+                timestamp = Now.AddSeconds(-20).ToString("O"),
+                payload = new
+                {
+                    type = "item_completed",
+                    item = new
+                    {
+                        type = "McpToolCall",
+                        server = "cua_repl",
+                        tool = "js",
+                        status = "failed"
+                    }
+                }
+            })
+        ]);
+
+        Assert.Equal(CodexActivityStatus.Thinking, snapshot.Status);
+    }
+
+    [Theory]
+    [InlineData("turn_aborted")]
+    [InlineData("thread_rolled_back")]
+    [InlineData("task_failed")]
+    [InlineData("turn_failed")]
+    public void ExplicitTaskFailureMapsToError(string eventType)
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            Event(eventType, Now.AddSeconds(-5))
+        ]);
+
+        Assert.Equal(CodexActivityStatus.Error, snapshot.Status);
+    }
+
+    [Fact]
     public void TaskCompleteOlderThanGraceMapsToIdle()
     {
         var detector = CreateDetector();

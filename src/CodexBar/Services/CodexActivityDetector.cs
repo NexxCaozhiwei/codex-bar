@@ -26,7 +26,7 @@ public sealed class CodexActivityDetector
     private static readonly HashSet<string> CommandEvents = new(StringComparer.OrdinalIgnoreCase)
     {
         "function_call", "custom_tool_call", "web_search_call", "tool_call", "exec_command",
-        "exec_command_begin", "command_execution_begin"
+        "exec_command_begin", "command_execution_begin", "CommandExecution", "McpToolCall"
     };
 
     private static readonly HashSet<string> ReviewEvents = new(StringComparer.OrdinalIgnoreCase)
@@ -54,10 +54,11 @@ public sealed class CodexActivityDetector
         "approval_granted", "permission_granted", "input_provided", "user_message", "resumed", "task_resumed"
     };
 
-    private static readonly HashSet<string> ErrorEvents = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> TaskErrorEventTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "turn_aborted", "thread_rolled_back", "error", "failed", "failure", "network_error",
-        "connection_error", "timeout", "timed_out", "disconnected"
+        "turn_aborted", "thread_rolled_back", "task_failed", "turn_failed", "error",
+        "network_error", "connection_error", "authentication_error", "timeout", "timed_out",
+        "disconnected"
     };
 
     private readonly CodexSessionLogReader _logReader;
@@ -252,7 +253,7 @@ public sealed class CodexActivityDetector
     {
         var values = EnumerateSemanticValues(root).ToArray();
 
-        if (values.Any(IsErrorValue))
+        if (IsTaskError(root))
         {
             return new ActivityClassification(
                 CodexActivityStatus.Error,
@@ -312,9 +313,15 @@ public sealed class CodexActivityDetector
     }
 
     private static bool IsTaskCompletion(JsonElement root)
+        => IsTaskLifecycleEvent(root, CompletionEventTypes);
+
+    private static bool IsTaskError(JsonElement root)
+        => IsTaskLifecycleEvent(root, TaskErrorEventTypes);
+
+    private static bool IsTaskLifecycleEvent(JsonElement root, HashSet<string> eventTypes)
     {
         var rootType = ReadString(root, "type");
-        if (rootType is not null && CompletionEventTypes.Contains(rootType))
+        if (rootType is not null && eventTypes.Contains(rootType))
         {
             return true;
         }
@@ -326,8 +333,10 @@ public sealed class CodexActivityDetector
             return false;
         }
 
+        // Only the direct event envelope participates in task lifecycle detection.
+        // Nested item/status fields describe individual tools and must not end the task.
         var payloadType = ReadString(payload, "type");
-        return payloadType is not null && CompletionEventTypes.Contains(payloadType);
+        return payloadType is not null && eventTypes.Contains(payloadType);
     }
 
     private static SessionMetadata ReadSessionMetadata(JsonElement root)
@@ -478,23 +487,6 @@ public sealed class CodexActivityDetector
         => WaitingUserEvents.Contains(value) ||
            value.Contains("waiting_for_user", StringComparison.OrdinalIgnoreCase) ||
            value.Contains("request_user_input", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsErrorValue(string value)
-        => ErrorEvents.Contains(value) ||
-           value.Contains("error", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("failure", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("timed out", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("network", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("offline", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("disconnect", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("connection reset", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("fetch failed", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("econnreset", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("enotfound", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("etimedout", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("tls", StringComparison.OrdinalIgnoreCase);
 
     private static IEnumerable<string> EnumerateSemanticValues(JsonElement element)
     {
