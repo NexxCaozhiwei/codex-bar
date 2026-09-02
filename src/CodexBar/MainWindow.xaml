@@ -42,7 +42,13 @@
                     <Ellipse Width="7" Height="7" Fill="{Binding BlueLightBrush}" Margin="0,0,4,0" />
                     <Ellipse Width="7" Height="7" Fill="{Binding RedLightBrush}" />
                 </StackPanel>
-                <TextBlock Grid.Column="4" Text="{Binding StatusText}" Foreground="{Binding StatusBrush}" FontSize="11" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="4"
+                           Text="{Binding StatusSummaryText}"
+                           Foreground="{Binding StatusBrush}"
+                           FontSize="10"
+                           MaxWidth="118"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center" />
             </Grid>
 
             <ItemsControl Grid.Row="1" ItemsSource="{Binding QuotaRows}">

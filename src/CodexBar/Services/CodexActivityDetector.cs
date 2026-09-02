@@ -6,65 +6,66 @@ namespace CodexBar.Services;
 
 public sealed class CodexActivityDetector
 {
-    private static readonly TimeSpan ActiveWindow = TimeSpan.FromSeconds(60);
-    private static readonly TimeSpan CompletionGrace = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan WaitingWindow = TimeSpan.FromMinutes(5);
-
-    private static readonly HashSet<string> ActiveEvents = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> ThinkingEvents = new(StringComparer.OrdinalIgnoreCase)
     {
-        "task_started",
-        "function_call",
-        "custom_tool_call",
-        "web_search_call",
-        "tool_call",
-        "patch_apply_begin",
-        "reasoning",
-        "agent_message_delta",
-        "exec_command_begin",
-        "command_execution_begin"
+        "task_started", "turn_started", "reasoning", "agent_message_delta"
+    };
+
+    private static readonly HashSet<string> EditingEvents = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "apply_patch", "patch_apply_begin", "file_edit", "file_change", "edit_file", "write_file"
+    };
+
+    private static readonly HashSet<string> CommandEvents = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "function_call", "custom_tool_call", "web_search_call", "tool_call", "exec_command",
+        "exec_command_begin", "command_execution_begin"
+    };
+
+    private static readonly HashSet<string> ReviewEvents = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "auto_review", "auto_reviewing", "code_review", "reviewing", "review_started"
     };
 
     private static readonly HashSet<string> CompletionEvents = new(StringComparer.OrdinalIgnoreCase)
     {
-        "task_complete",
-        "turn_completed",
-        "completed"
+        "task_complete", "turn_completed", "completed"
     };
 
-    private static readonly HashSet<string> WaitingEvents = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> WaitingUserEvents = new(StringComparer.OrdinalIgnoreCase)
     {
-        "request_user_input",
-        "approval",
-        "permission",
-        "sandbox_permission",
-        "waiting_for_user",
-        "review_pending"
+        "request_user_input", "waiting_for_user", "user_input_required"
+    };
+
+    private static readonly HashSet<string> WaitingApprovalEvents = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "approval", "approval_request", "permission", "permission_request", "sandbox_permission", "review_pending"
+    };
+
+    private static readonly HashSet<string> RecoveryEvents = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "approval_granted", "permission_granted", "input_provided", "user_message", "resumed", "task_resumed"
     };
 
     private static readonly HashSet<string> ErrorEvents = new(StringComparer.OrdinalIgnoreCase)
     {
-        "turn_aborted",
-        "thread_rolled_back",
-        "error",
-        "failed",
-        "failure",
-        "network_error",
-        "connection_error",
-        "timeout",
-        "timed_out",
-        "disconnected"
+        "turn_aborted", "thread_rolled_back", "error", "failed", "failure", "network_error",
+        "connection_error", "timeout", "timed_out", "disconnected"
     };
 
     private readonly CodexSessionLogReader _logReader;
+    private readonly CodexActivityReducer _reducer;
     private readonly ILogger<CodexActivityDetector> _logger;
     private readonly Func<DateTimeOffset> _now;
 
     public CodexActivityDetector(
         CodexSessionLogReader logReader,
+        CodexActivityReducer reducer,
         ILogger<CodexActivityDetector> logger,
         Func<DateTimeOffset>? now = null)
     {
         _logReader = logReader;
+        _reducer = reducer;
         _logger = logger;
         _now = now ?? (() => DateTimeOffset.Now);
     }
@@ -79,10 +80,12 @@ public sealed class CodexActivityDetector
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "检测 Codex 活动状态失败。");
+            var now = _now();
             return new CodexActivitySnapshot(
                 CodexActivityStatus.Error,
-                _now(),
-                CodexDiagnostics.DescribeSessionLogFailure(ex.Message));
+                now,
+                CodexDiagnostics.DescribeSessionLogFailure(ex.Message),
+                StateEnteredAt: now);
         }
     }
 
@@ -92,8 +95,7 @@ public sealed class CodexActivityDetector
     public CodexActivitySnapshot DetectFromEntries(IEnumerable<CodexSessionLogEntry> newestFirstEntries)
     {
         var now = _now();
-        ActivityEvent? newestRelevant = null;
-        ActivityEvent? newestCompletion = null;
+        var events = new List<CodexActivityEvent>();
         var sawUnclassifiableWithoutTime = false;
 
         foreach (var entry in newestFirstEntries)
@@ -109,85 +111,26 @@ public sealed class CodexActivityDetector
                 continue;
             }
 
-            if (activityEvent.Kind == ActivityEventKind.Ignore)
+            if (activityEvent is { } value)
             {
-                continue;
-            }
-
-            if (newestRelevant is null || activityEvent.Timestamp > newestRelevant.Value.Timestamp)
-            {
-                newestRelevant = activityEvent;
-            }
-
-            if (activityEvent.Kind == ActivityEventKind.Completed &&
-                (newestCompletion is null || activityEvent.Timestamp > newestCompletion.Value.Timestamp))
-            {
-                newestCompletion = activityEvent;
+                events.Add(value);
             }
         }
 
-        if (newestRelevant is null)
+        var snapshot = _reducer.Reduce(events, now);
+        if (snapshot is not null)
         {
-            return sawUnclassifiableWithoutTime
-                ? new CodexActivitySnapshot(CodexActivityStatus.Unknown, now, "无法判断最近 Codex 活动时间。")
-                : new CodexActivitySnapshot(CodexActivityStatus.Idle, now, "未检测到活跃的 Codex 任务。");
+            return snapshot;
         }
 
-        var latest = newestRelevant.Value;
-        var latestCompletion = newestCompletion;
-        var age = ClampAge(now - latest.Timestamp);
-        return latest.Kind switch
-        {
-            ActivityEventKind.Waiting when age <= WaitingWindow => new CodexActivitySnapshot(
-                CodexActivityStatus.WaitingForUser,
-                latest.Timestamp,
-                "正在等待用户输入或授权。",
-                latest.SourceFile),
-
-            ActivityEventKind.Waiting => Idle(latest, "最近未检测到新的 Codex 活动。"),
-
-            ActivityEventKind.Completed when age <= CompletionGrace => new CodexActivitySnapshot(
-                CodexActivityStatus.Completed,
-                latest.Timestamp,
-                "任务已完成。",
-                latest.SourceFile),
-
-            ActivityEventKind.Completed => Idle(latest, "最近任务已完成，当前空闲。"),
-
-            ActivityEventKind.Active when IsAfterRecentCompletion(latest, latestCompletion) => Idle(
-                latestCompletion!.Value,
-                "最近任务已完成，当前空闲。"),
-
-            ActivityEventKind.Active when age <= ActiveWindow => new CodexActivitySnapshot(
-                CodexActivityStatus.Working,
-                latest.Timestamp,
-                "Codex 正在工作。",
-                latest.SourceFile),
-
-            ActivityEventKind.Active => Idle(latest, "最近未检测到新的 Codex 活动。"),
-
-            ActivityEventKind.Error => new CodexActivitySnapshot(
-                CodexActivityStatus.Error,
-                latest.Timestamp,
-                latest.Detail ?? "最近的 session 事件显示任务出错或中止。",
-                latest.SourceFile),
-
-            _ => new CodexActivitySnapshot(CodexActivityStatus.Unknown, latest.Timestamp, "无法判断最近 Codex 活动状态。", latest.SourceFile)
-        };
+        return sawUnclassifiableWithoutTime
+            ? new CodexActivitySnapshot(CodexActivityStatus.Unknown, now, "无法判断最近 Codex 活动时间。", StateEnteredAt: now)
+            : new CodexActivitySnapshot(CodexActivityStatus.Idle, now, "未检测到活跃的 Codex 任务。", StateEnteredAt: now);
     }
 
-    private static CodexActivitySnapshot Idle(ActivityEvent activityEvent, string detail)
-        => new(CodexActivityStatus.Idle, activityEvent.Timestamp, detail, activityEvent.SourceFile);
-
-    private static bool IsAfterRecentCompletion(ActivityEvent activeEvent, ActivityEvent? completionEvent)
-        => completionEvent is not null && completionEvent.Value.Timestamp >= activeEvent.Timestamp;
-
-    private static TimeSpan ClampAge(TimeSpan age)
-        => age < TimeSpan.Zero ? TimeSpan.Zero : age;
-
-    private static bool TryParseActivityEvent(CodexSessionLogEntry entry, out ActivityEvent activityEvent)
+    private static bool TryParseActivityEvent(CodexSessionLogEntry entry, out CodexActivityEvent? activityEvent)
     {
-        activityEvent = default;
+        activityEvent = null;
 
         try
         {
@@ -200,11 +143,18 @@ public sealed class CodexActivityDetector
             }
 
             var classification = Classify(root);
-            activityEvent = new ActivityEvent(
-                classification.Kind,
+            if (classification is null)
+            {
+                return true;
+            }
+
+            activityEvent = new CodexActivityEvent(
+                classification.Value.Status,
                 timestamp.Value,
                 entry.SourceFile,
-                classification.Detail);
+                classification.Value.Detail,
+                classification.Value.IsExplicitRecovery,
+                classification.Value.StartsTask);
             return true;
         }
         catch (JsonException)
@@ -213,45 +163,89 @@ public sealed class CodexActivityDetector
         }
     }
 
-    private static ActivityClassification Classify(JsonElement root)
+    private static ActivityClassification? Classify(JsonElement root)
     {
         var values = EnumerateSemanticValues(root).ToArray();
-
-        if (values.Any(IsWaitingValue))
-        {
-            return new ActivityClassification(ActivityEventKind.Waiting);
-        }
 
         if (values.Any(IsErrorValue))
         {
             return new ActivityClassification(
-                ActivityEventKind.Error,
+                CodexActivityStatus.Error,
                 CodexDiagnostics.DescribeActivityError(string.Join(" ", values)));
         }
 
         if (values.Any(value => CompletionEvents.Contains(value)))
         {
-            return new ActivityClassification(ActivityEventKind.Completed);
+            return new ActivityClassification(CodexActivityStatus.Completed);
         }
 
-        if (values.Any(IsActiveValue))
+        if (values.Any(value => RecoveryEvents.Contains(value)))
         {
-            return new ActivityClassification(ActivityEventKind.Active);
+            return new ActivityClassification(CodexActivityStatus.Thinking, IsExplicitRecovery: true);
         }
 
-        return new ActivityClassification(ActivityEventKind.Ignore);
+        if (values.Any(IsWaitingApprovalValue))
+        {
+            return new ActivityClassification(CodexActivityStatus.WaitingApproval);
+        }
+
+        if (values.Any(IsWaitingUserValue))
+        {
+            return new ActivityClassification(CodexActivityStatus.WaitingUser);
+        }
+
+        var commandValues = EnumerateCommandValues(root).ToArray();
+        if (commandValues.Any(IsTestCommand))
+        {
+            return new ActivityClassification(CodexActivityStatus.RunningTests);
+        }
+
+        if (values.Any(IsReviewValue))
+        {
+            return new ActivityClassification(CodexActivityStatus.Reviewing);
+        }
+
+        if (values.Any(IsEditingValue))
+        {
+            return new ActivityClassification(CodexActivityStatus.Editing);
+        }
+
+        if (values.Any(IsCommandValue) || commandValues.Length > 0)
+        {
+            return new ActivityClassification(CodexActivityStatus.RunningCommand);
+        }
+
+        if (values.Any(value => ThinkingEvents.Contains(value)))
+        {
+            var startsTask = values.Any(value => value.Equals("task_started", StringComparison.OrdinalIgnoreCase));
+            return new ActivityClassification(CodexActivityStatus.Thinking, IsExplicitRecovery: startsTask, StartsTask: startsTask);
+        }
+
+        return null;
     }
 
-    private static bool IsActiveValue(string value)
-        => ActiveEvents.Contains(value) ||
+    private static bool IsEditingValue(string value)
+        => EditingEvents.Contains(value) ||
+           value.Contains("apply_patch", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("file_edit", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsCommandValue(string value)
+        => CommandEvents.Contains(value) ||
            value.EndsWith("/begin", StringComparison.OrdinalIgnoreCase) ||
            value.EndsWith("_begin", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsWaitingValue(string value)
-        => WaitingEvents.Contains(value) ||
+    private static bool IsReviewValue(string value)
+        => ReviewEvents.Contains(value) || value.Contains("auto_review", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsWaitingApprovalValue(string value)
+        => WaitingApprovalEvents.Contains(value) ||
            value.Contains("approval", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("permission", StringComparison.OrdinalIgnoreCase) ||
-           value.Contains("waiting_for_user", StringComparison.OrdinalIgnoreCase);
+           value.Contains("permission", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsWaitingUserValue(string value)
+        => WaitingUserEvents.Contains(value) ||
+           value.Contains("waiting_for_user", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("request_user_input", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsErrorValue(string value)
         => ErrorEvents.Contains(value) ||
@@ -270,6 +264,22 @@ public sealed class CodexActivityDetector
            value.Contains("etimedout", StringComparison.OrdinalIgnoreCase) ||
            value.Contains("tls", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsTestCommand(string command)
+    {
+        var normalized = command.Trim().ToLowerInvariant();
+        return normalized.Contains("dotnet test", StringComparison.Ordinal) ||
+               normalized.Contains("pytest", StringComparison.Ordinal) ||
+               normalized.Contains("python -m pytest", StringComparison.Ordinal) ||
+               normalized.Contains("npm test", StringComparison.Ordinal) ||
+               normalized.Contains("npm run test", StringComparison.Ordinal) ||
+               normalized.Contains("pnpm test", StringComparison.Ordinal) ||
+               normalized.Contains("yarn test", StringComparison.Ordinal) ||
+               normalized.Contains("cargo test", StringComparison.Ordinal) ||
+               normalized.Contains("go test", StringComparison.Ordinal) ||
+               normalized.Contains("mvn test", StringComparison.Ordinal) ||
+               normalized.Contains("gradle test", StringComparison.Ordinal);
+    }
+
     private static IEnumerable<string> EnumerateSemanticValues(JsonElement element)
     {
         if (element.ValueKind != JsonValueKind.Object)
@@ -277,22 +287,48 @@ public sealed class CodexActivityDetector
             yield break;
         }
 
-        foreach (var value in ReadStringProperties(element, "type", "event", "event_type", "kind", "method", "name", "status", "error", "message", "detail", "reason", "code", "error_type"))
+        foreach (var value in ReadStringProperties(
+                     element,
+                     "type", "event", "event_type", "eventType", "kind", "method", "name", "status",
+                     "error", "message", "detail", "reason", "code", "error_type", "errorType"))
         {
             yield return value;
         }
 
-        if (element.TryGetProperty("payload", out var payload))
+        foreach (var childName in new[] { "payload", "item" })
         {
-            foreach (var value in EnumerateSemanticValues(payload))
+            if (!element.TryGetProperty(childName, out var child))
+            {
+                continue;
+            }
+
+            foreach (var value in EnumerateSemanticValues(child))
             {
                 yield return value;
             }
         }
+    }
 
-        if (element.TryGetProperty("item", out var item))
+    private static IEnumerable<string> EnumerateCommandValues(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
         {
-            foreach (var value in EnumerateSemanticValues(item))
+            yield break;
+        }
+
+        foreach (var value in ReadStringProperties(element, "command", "cmd", "arguments"))
+        {
+            yield return value;
+        }
+
+        foreach (var childName in new[] { "payload", "item" })
+        {
+            if (!element.TryGetProperty(childName, out var child))
+            {
+                continue;
+            }
+
+            foreach (var value in EnumerateCommandValues(child))
             {
                 yield return value;
             }
@@ -348,20 +384,9 @@ public sealed class CodexActivityDetector
         return DateTimeOffset.TryParse(text, out var timestamp) ? timestamp : null;
     }
 
-    private enum ActivityEventKind
-    {
-        Ignore,
-        Active,
-        Waiting,
-        Completed,
-        Error
-    }
-
-    private readonly record struct ActivityClassification(ActivityEventKind Kind, string? Detail = null);
-
-    private readonly record struct ActivityEvent(
-        ActivityEventKind Kind,
-        DateTimeOffset Timestamp,
-        string? SourceFile,
-        string? Detail = null);
+    private readonly record struct ActivityClassification(
+        CodexActivityStatus Status,
+        string? Detail = null,
+        bool IsExplicitRecovery = false,
+        bool StartsTask = false);
 }

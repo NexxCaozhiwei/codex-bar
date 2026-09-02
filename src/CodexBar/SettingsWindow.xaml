@@ -2,11 +2,11 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Codex Bar 设置"
-        Width="460"
-        Height="492"
-        MinHeight="492"
+        Width="470"
+        Height="650"
+        MinHeight="560"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
+        ResizeMode="CanResizeWithGrip"
         Icon="Resources/CodexBar.ico"
         Background="#1B1D24">
     <Grid Margin="18">
@@ -16,59 +16,98 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <TextBlock Text="设置" FontSize="18" FontWeight="SemiBold" Foreground="#F4F7FB" />
-        <Grid Grid.Row="1" Margin="0,16,0,12">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="42" />
-                <RowDefinition Height="34" />
-                <RowDefinition Height="34" />
-                <RowDefinition Height="34" />
-                <RowDefinition Height="34" />
-                <RowDefinition Height="42" />
-                <RowDefinition Height="42" />
-                <RowDefinition Height="42" />
-            </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="150" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
 
-            <TextBlock Text="Codex 路径" Foreground="#9DA7B3" VerticalAlignment="Center" />
-            <TextBox x:Name="CodexPathBox" Grid.Column="1" Height="26" VerticalContentAlignment="Center" />
+        <ScrollViewer Grid.Row="1"
+                      Margin="0,16,0,12"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Codex 路径" Foreground="#9DA7B3" VerticalAlignment="Center" />
+                    <TextBox x:Name="CodexPathBox" Grid.Column="1" Height="26" VerticalContentAlignment="Center" />
+                </Grid>
 
-            <CheckBox x:Name="StartupBox" Grid.Row="1" Grid.ColumnSpan="2" Content="开机启动" Foreground="#F4F7FB" />
-            <CheckBox x:Name="TopMostBox" Grid.Row="2" Grid.ColumnSpan="2" Content="窗口置顶" Foreground="#F4F7FB" />
-            <CheckBox x:Name="LockPositionBox" Grid.Row="3" Grid.ColumnSpan="2" Content="锁定位置" Foreground="#F4F7FB" />
-            <CheckBox x:Name="AutoDockBox" Grid.Row="4" Grid.ColumnSpan="2" Content="自动吸附到任务栏附近" Foreground="#F4F7FB" />
+                <CheckBox x:Name="StartupBox" Content="开机启动" Foreground="#F4F7FB" Margin="0,5" />
+                <CheckBox x:Name="TopMostBox" Content="窗口置顶" Foreground="#F4F7FB" Margin="0,5" />
+                <CheckBox x:Name="LockPositionBox" Content="锁定位置" Foreground="#F4F7FB" Margin="0,5" />
+                <CheckBox x:Name="AutoDockBox" Content="自动吸附到任务栏附近" Foreground="#F4F7FB" Margin="0,5,0,10" />
 
-            <TextBlock Grid.Row="5" Text="刷新间隔（秒）" Foreground="#9DA7B3" VerticalAlignment="Center" />
-            <TextBox x:Name="RefreshBox" Grid.Row="5" Grid.Column="1" Height="26" VerticalContentAlignment="Center" />
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="刷新间隔（秒）" Foreground="#9DA7B3" VerticalAlignment="Center" />
+                    <TextBox x:Name="RefreshBox" Grid.Column="1" Height="26" VerticalContentAlignment="Center" />
+                </Grid>
 
-            <TextBlock Grid.Row="6" Text="不透明度" Foreground="#9DA7B3" VerticalAlignment="Center" />
-            <Grid Grid.Row="6" Grid.Column="1">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="52" />
-                </Grid.ColumnDefinitions>
-                <Slider x:Name="OpacitySlider"
-                        Minimum="20"
-                        Maximum="100"
-                        TickFrequency="5"
-                        IsSnapToTickEnabled="True"
-                        VerticalAlignment="Center"
-                        ValueChanged="OnOpacityChanged" />
-                <TextBlock x:Name="OpacityValueText"
-                           Grid.Column="1"
-                           Foreground="#F4F7FB"
-                           TextAlignment="Right"
-                           VerticalAlignment="Center" />
-            </Grid>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="不透明度" Foreground="#9DA7B3" VerticalAlignment="Center" />
+                    <Grid Grid.Column="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="52" />
+                        </Grid.ColumnDefinitions>
+                        <Slider x:Name="OpacitySlider"
+                                Minimum="20"
+                                Maximum="100"
+                                TickFrequency="5"
+                                IsSnapToTickEnabled="True"
+                                VerticalAlignment="Center"
+                                ValueChanged="OnOpacityChanged" />
+                        <TextBlock x:Name="OpacityValueText"
+                                   Grid.Column="1"
+                                   Foreground="#F4F7FB"
+                                   TextAlignment="Right"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                </Grid>
 
-            <TextBlock Grid.Row="7" Text="界面语言" Foreground="#9DA7B3" VerticalAlignment="Center" />
-            <ComboBox x:Name="LanguageBox" Grid.Row="7" Grid.Column="1" Height="26">
-                <ComboBoxItem Content="中文" Tag="zh" />
-                <ComboBoxItem Content="英文" Tag="en" />
-            </ComboBox>
-        </Grid>
+                <GroupBox Header="关键事件通知" Foreground="#F4F7FB" Padding="10" Margin="0,0,0,12">
+                    <StackPanel>
+                        <CheckBox x:Name="NotifyCompletedBox" Content="任务完成" Foreground="#F4F7FB" Margin="0,3" />
+                        <CheckBox x:Name="NotifyWaitingUserBox" Content="等待用户输入" Foreground="#F4F7FB" Margin="0,3" />
+                        <CheckBox x:Name="NotifyWaitingApprovalBox" Content="等待审批或授权" Foreground="#F4F7FB" Margin="0,3" />
+                        <CheckBox x:Name="NotifyErrorBox" Content="执行错误" Foreground="#F4F7FB" Margin="0,3,0,8" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="190" />
+                                <ColumnDefinition Width="90" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="最短任务时长（秒）" Foreground="#9DA7B3" VerticalAlignment="Center" />
+                            <TextBox x:Name="MinimumDurationBox" Grid.Column="1" Height="26" VerticalContentAlignment="Center" />
+                        </Grid>
+                        <TextBlock Text="仅用于完成和等待通知；错误通知不受此阈值限制。"
+                                   Foreground="#7F8A97"
+                                   FontSize="11"
+                                   Margin="0,6,0,0"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </GroupBox>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="界面语言" Foreground="#9DA7B3" VerticalAlignment="Center" />
+                    <ComboBox x:Name="LanguageBox" Grid.Column="1" Height="26">
+                        <ComboBoxItem Content="中文" Tag="zh" />
+                        <ComboBoxItem Content="英文" Tag="en" />
+                    </ComboBox>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Width="92" Height="30" Margin="0,0,8,0" Content="恢复默认" Click="OnDefaults" />
             <Button Width="82" Height="30" Margin="0,0,8,0" Content="取消" IsCancel="True" />

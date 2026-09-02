@@ -26,6 +26,12 @@ public partial class SettingsWindow : Window
         _viewModel.Settings.RefreshIntervalSeconds = int.TryParse(RefreshBox.Text, out var seconds) ? seconds : 15;
         _viewModel.Settings.OpacityPercent = Math.Clamp((int)Math.Round(OpacitySlider.Value), 20, 100);
         _viewModel.Settings.Language = ((ComboBoxItem?)LanguageBox.SelectedItem)?.Tag?.ToString() ?? "zh";
+        _viewModel.Settings.NotifyOnTaskCompleted = NotifyCompletedBox.IsChecked == true;
+        _viewModel.Settings.NotifyOnWaitingUser = NotifyWaitingUserBox.IsChecked == true;
+        _viewModel.Settings.NotifyOnWaitingApproval = NotifyWaitingApprovalBox.IsChecked == true;
+        _viewModel.Settings.NotifyOnError = NotifyErrorBox.IsChecked == true;
+        _viewModel.Settings.NotificationMinimumTaskDurationSeconds =
+            int.TryParse(MinimumDurationBox.Text, out var minimumDuration) ? minimumDuration : 30;
         _viewModel.SaveSettings();
         Close();
     }
@@ -46,6 +52,11 @@ public partial class SettingsWindow : Window
         OpacitySlider.Value = Math.Clamp(settings.OpacityPercent, 20, 100);
         UpdateOpacityText();
         LanguageBox.SelectedIndex = settings.Language.Equals("en", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        NotifyCompletedBox.IsChecked = settings.NotifyOnTaskCompleted;
+        NotifyWaitingUserBox.IsChecked = settings.NotifyOnWaitingUser;
+        NotifyWaitingApprovalBox.IsChecked = settings.NotifyOnWaitingApproval;
+        NotifyErrorBox.IsChecked = settings.NotifyOnError;
+        MinimumDurationBox.Text = settings.NotificationMinimumTaskDurationSeconds.ToString();
     }
 
     private void OnOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

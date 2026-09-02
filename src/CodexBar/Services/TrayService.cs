@@ -45,6 +45,19 @@ public sealed class TrayService : IDisposable
         }
     }
 
+    public void ShowNotification(ActivityNotification notification)
+    {
+        if (_notifyIcon is null)
+        {
+            return;
+        }
+
+        var icon = notification.Kind == ActivityNotificationKind.Error
+            ? ToolTipIcon.Error
+            : ToolTipIcon.Info;
+        _notifyIcon.ShowBalloonTip(5000, notification.Title, notification.Message, icon);
+    }
+
     private static ContextMenuStrip BuildMenu(Window mainWindow, MainViewModel viewModel)
     {
         var menu = new ContextMenuStrip();

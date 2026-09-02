@@ -10,11 +10,13 @@ public sealed class MainViewModel : ObservableObject
 {
     private readonly QuotaService _quotaService;
     private readonly CodexActivityDetector _activityDetector;
+    private readonly ActivityNotificationService _notificationService;
     private readonly SettingsService _settingsService;
     private readonly StartupService _startupService;
     private readonly WindowDockingService _dockingService;
     private readonly TrayService _trayService;
     private readonly DispatcherTimer _timer = new();
+    private readonly DispatcherTimer _durationTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private Window? _mainWindow;
     private QuotaSnapshot _quota = QuotaSnapshot.Empty("尚未刷新。");
@@ -25,6 +27,7 @@ public sealed class MainViewModel : ObservableObject
     public MainViewModel(
         QuotaService quotaService,
         CodexActivityDetector activityDetector,
+        ActivityNotificationService notificationService,
         SettingsService settingsService,
         StartupService startupService,
         WindowDockingService dockingService,
@@ -32,6 +35,7 @@ public sealed class MainViewModel : ObservableObject
     {
         _quotaService = quotaService;
         _activityDetector = activityDetector;
+        _notificationService = notificationService;
         _settingsService = settingsService;
         _startupService = startupService;
         _dockingService = dockingService;
@@ -43,6 +47,12 @@ public sealed class MainViewModel : ObservableObject
         DetailsCommand = new RelayCommand(() => ShowDetails());
 
         ConfigureTimer();
+        _durationTimer.Tick += (_, _) =>
+        {
+            RaisePropertyChanged(nameof(StatusDurationText));
+            RaisePropertyChanged(nameof(StatusSummaryText));
+        };
+        _durationTimer.Start();
     }
 
     public AppSettings Settings { get; }
@@ -66,6 +76,10 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public string StatusText => FormatStatus(_activity.Status);
+
+    public string StatusSummaryText => $"{StatusText} · {FormatCompactDuration(StateDuration)}";
+
+    public string StatusDurationText => FormatDuration(StateDuration);
 
     public string DetailStatusText => _activity.Detail;
 
@@ -187,12 +201,17 @@ public sealed class MainViewModel : ObservableObject
             IsRefreshing = true;
             _quota = await _quotaService.ReadAsync(Settings);
             _activity = await _activityDetector.DetectAsync();
+            var notification = _notificationService.Observe(_activity, Settings);
             RaiseAllDisplayProperties();
             var primaryWindow = DisplayWindows().FirstOrDefault();
             var quotaText = primaryWindow is null
                 ? (_quota.Credits?.Unlimited == true ? "额度无限" : "额度不可用")
                 : $"{primaryWindow.Label} 剩余 {primaryWindow.RemainingPercent:0}%";
             _trayService.UpdateText($"Codex Bar - {StatusText} - {quotaText}");
+            if (notification is not null)
+            {
+                _trayService.ShowNotification(notification);
+            }
         }
         finally
         {
@@ -227,6 +246,10 @@ public sealed class MainViewModel : ObservableObject
     {
         Settings.RefreshIntervalSeconds = Math.Clamp(Settings.RefreshIntervalSeconds, 5, 3600);
         Settings.OpacityPercent = Math.Clamp(Settings.OpacityPercent, 20, 100);
+        Settings.NotificationMinimumTaskDurationSeconds = Math.Clamp(
+            Settings.NotificationMinimumTaskDurationSeconds,
+            0,
+            3600);
         _settingsService.Save(Settings);
         _startupService.SetEnabled(Settings.StartWithWindows);
         ConfigureTimer();
@@ -299,6 +322,8 @@ public sealed class MainViewModel : ObservableObject
         foreach (var property in new[]
         {
             nameof(StatusText),
+            nameof(StatusSummaryText),
+            nameof(StatusDurationText),
             nameof(DetailStatusText),
             nameof(StatusBrush),
             nameof(RedLightBrush),
@@ -351,14 +376,47 @@ public sealed class MainViewModel : ObservableObject
     private static string FormatStatus(CodexActivityStatus status) => status switch
     {
         CodexActivityStatus.Idle => "空闲",
-        CodexActivityStatus.Working => "正在工作",
-        CodexActivityStatus.WaitingForUser => "等待用户",
-        CodexActivityStatus.AutoReviewing => "自动审查",
+        CodexActivityStatus.Thinking => "思考中",
+        CodexActivityStatus.Editing => "编辑中",
+        CodexActivityStatus.RunningCommand => "运行命令",
+        CodexActivityStatus.RunningTests => "运行测试",
+        CodexActivityStatus.Reviewing => "审查中",
+        CodexActivityStatus.WaitingApproval => "等待审批",
+        CodexActivityStatus.WaitingUser => "等待用户",
         CodexActivityStatus.Completed => "已完成",
         CodexActivityStatus.Unknown => "未知",
         CodexActivityStatus.Error => "错误",
         _ => "未知"
     };
+
+    private TimeSpan StateDuration
+    {
+        get
+        {
+            var duration = DateTimeOffset.Now - _activity.EffectiveStateEnteredAt;
+            return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
+        }
+    }
+
+    private static string FormatCompactDuration(TimeSpan duration)
+        => duration.TotalHours >= 1
+            ? $"{(int)duration.TotalHours}:{duration.Minutes:00}:{duration.Seconds:00}"
+            : $"{(int)duration.TotalMinutes}:{duration.Seconds:00}";
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalMinutes < 1)
+        {
+            return $"{(int)duration.TotalSeconds} 秒";
+        }
+
+        if (duration.TotalHours < 1)
+        {
+            return $"{(int)duration.TotalMinutes} 分 {duration.Seconds} 秒";
+        }
+
+        return $"{(int)duration.TotalHours} 小时 {duration.Minutes} 分 {duration.Seconds} 秒";
+    }
 
     private static string FormatDataSource(QuotaDataSource source) => source switch
     {

@@ -104,10 +104,12 @@ GitHub Release 由 `.github/workflows/release.yml` 在 tag push 后自动创建�
 
 核心规则：
 
-- active 事件 60 秒内显示 `Working`。
+- active 事件按语义细分为 `Thinking`、`Editing`、`RunningCommand`、`RunningTests`、`Reviewing`，60 秒内保持对应工作态。
 - `task_complete`、`turn_completed`、`completed` 事件 30 秒内显示 `Completed`。
 - 完成事件超过 30 秒后显示 `Idle`。
-- `request_user_input`、`approval`、`permission`、`waiting_for_user` 等事件 5 分钟内显示 `WaitingForUser`，超过后显示 `Idle`。
+- `approval`、`permission` 等事件 5 分钟内显示 `WaitingApproval`；`request_user_input`、`waiting_for_user` 显示 `WaitingUser`，超过后显示 `Idle`。
+- 等待态具有优先级和粘性，普通活动事件不可覆盖；显式恢复、完成、错误或超时可以解除。
+- 错误态保留 5 分钟，显式恢复、完成或超时后解除。
 - active 事件超过 60 秒且没有后续完成事件时，优先显示 `Idle`，详情说明“最近未检测到新的 Codex 活动”。
 - timestamp 解析顺序：顶层 `timestamp`，再解析 payload / item 的完成或创建时间，再用 session 文件 `LastWriteTimeUtc`，仍无法判断时返回 `Unknown`。
 - 错误、网络异常、断线、超时等本地日志字段应映射到 `Error`。

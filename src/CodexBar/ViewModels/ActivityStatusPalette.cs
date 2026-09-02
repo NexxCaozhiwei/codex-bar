@@ -9,8 +9,12 @@ public static class ActivityStatusPalette
     public static Brush StatusBrush(CodexActivityStatus status) => status switch
     {
         CodexActivityStatus.Idle or CodexActivityStatus.Completed => Brushes.LimeGreen,
-        CodexActivityStatus.Working or CodexActivityStatus.AutoReviewing => Brushes.DeepSkyBlue,
-        CodexActivityStatus.WaitingForUser => Brushes.Gold,
+        CodexActivityStatus.Thinking or
+        CodexActivityStatus.Editing or
+        CodexActivityStatus.RunningCommand or
+        CodexActivityStatus.RunningTests or
+        CodexActivityStatus.Reviewing => Brushes.DeepSkyBlue,
+        CodexActivityStatus.WaitingApproval or CodexActivityStatus.WaitingUser => Brushes.Gold,
         CodexActivityStatus.Error => Brushes.OrangeRed,
         CodexActivityStatus.Unknown => Brushes.DarkGray,
         _ => Brushes.DarkGray
@@ -29,9 +33,7 @@ public static class ActivityStatusPalette
         => status is CodexActivityStatus.Idle or CodexActivityStatus.Completed;
 
     public static bool IsBlue(CodexActivityStatus status)
-        => status is CodexActivityStatus.Working
-            or CodexActivityStatus.AutoReviewing
-            or CodexActivityStatus.WaitingForUser;
+        => status.IsWorking() || status.IsWaiting();
 
     public static bool IsRed(CodexActivityStatus status)
         => status == CodexActivityStatus.Error;

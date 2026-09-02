@@ -18,9 +18,13 @@ public sealed class ActivityStatusPaletteTests
     }
 
     [Theory]
-    [InlineData(CodexActivityStatus.Working)]
-    [InlineData(CodexActivityStatus.AutoReviewing)]
-    [InlineData(CodexActivityStatus.WaitingForUser)]
+    [InlineData(CodexActivityStatus.Thinking)]
+    [InlineData(CodexActivityStatus.Editing)]
+    [InlineData(CodexActivityStatus.RunningCommand)]
+    [InlineData(CodexActivityStatus.RunningTests)]
+    [InlineData(CodexActivityStatus.Reviewing)]
+    [InlineData(CodexActivityStatus.WaitingApproval)]
+    [InlineData(CodexActivityStatus.WaitingUser)]
     public void ActiveStatesUseBlueLight(CodexActivityStatus status)
     {
         Assert.Same(Brushes.DimGray, ActivityStatusPalette.GreenLightBrush(status));

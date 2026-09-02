@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Codex Bar 详情"
         Width="420"
-        Height="280"
+        Height="310"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Icon="Resources/CodexBar.ico"
@@ -24,6 +24,7 @@
             </ItemsControl>
             <TextBlock Text="{Binding QuotaAccountDetails}" Foreground="#9DA7B3" TextWrapping="Wrap" Margin="0,0,0,8" />
             <TextBlock Text="{Binding StatusText, StringFormat=状态：{0}}" Foreground="#F4F7FB" Margin="0,0,0,8" />
+            <TextBlock Text="{Binding StatusDurationText, StringFormat=当前状态持续：{0}}" Foreground="#9DA7B3" Margin="0,0,0,8" />
             <TextBlock Text="{Binding DetailStatusText}" Foreground="#9DA7B3" TextWrapping="Wrap" Margin="0,0,0,8" />
             <TextBlock Text="{Binding LastRefreshText, StringFormat=最近刷新：{0}}" Foreground="#9DA7B3" Margin="0,0,0,8" />
             <TextBlock Text="{Binding CodexPathText, StringFormat=Codex CLI：{0}}" Foreground="#9DA7B3" TextWrapping="Wrap" Margin="0,0,0,8" />

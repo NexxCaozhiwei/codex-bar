@@ -25,7 +25,9 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<CodexLocator>();
                 services.AddSingleton<CodexAppServerClient>();
                 services.AddSingleton<CodexSessionLogReader>();
+                services.AddSingleton<CodexActivityReducer>();
                 services.AddSingleton<CodexActivityDetector>();
+                services.AddSingleton<ActivityNotificationService>();
                 services.AddSingleton<QuotaService>();
                 services.AddSingleton<SettingsService>();
                 services.AddSingleton<StartupService>();

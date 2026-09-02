@@ -33,14 +33,14 @@ public sealed class CodexActivityDetectorTests
     }
 
     [Fact]
-    public void ActiveEventWithinWindowMapsToWorking()
+    public void FunctionCallWithinWindowMapsToRunningCommand()
     {
         var detector = CreateDetector();
         var snapshot = detector.DetectFromLines([
             Event("function_call", Now.AddSeconds(-20))
         ]);
 
-        Assert.Equal(CodexActivityStatus.Working, snapshot.Status);
+        Assert.Equal(CodexActivityStatus.RunningCommand, snapshot.Status);
     }
 
     [Fact]
@@ -110,8 +110,72 @@ public sealed class CodexActivityDetectorTests
                 "session.jsonl")
         ]);
 
-        Assert.Equal(CodexActivityStatus.Working, snapshot.Status);
+        Assert.Equal(CodexActivityStatus.RunningCommand, snapshot.Status);
         Assert.Equal("session.jsonl", snapshot.SourceFile);
+    }
+
+    [Fact]
+    public void StructuredEventsMapToDetailedWorkingStates()
+    {
+        var detector = CreateDetector();
+
+        Assert.Equal(CodexActivityStatus.Thinking, detector.DetectFromLines([Event("reasoning", Now.AddSeconds(-5))]).Status);
+        Assert.Equal(CodexActivityStatus.Editing, detector.DetectFromLines([Event("apply_patch", Now.AddSeconds(-5))]).Status);
+        Assert.Equal(CodexActivityStatus.Reviewing, detector.DetectFromLines([Event("auto_review", Now.AddSeconds(-5))]).Status);
+        Assert.Equal(CodexActivityStatus.WaitingApproval, detector.DetectFromLines([Event("approval_request", Now.AddSeconds(-5))]).Status);
+        Assert.Equal(CodexActivityStatus.WaitingUser, detector.DetectFromLines([Event("request_user_input", Now.AddSeconds(-5))]).Status);
+    }
+
+    [Fact]
+    public void TestCommandMapsToRunningTests()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            JsonSerializer.Serialize(new
+            {
+                type = "event_msg",
+                timestamp = Now.AddSeconds(-5).ToString("O"),
+                payload = new { type = "exec_command_begin", command = "dotnet test CodexBar.sln -c Release" }
+            })
+        ]);
+
+        Assert.Equal(CodexActivityStatus.RunningTests, snapshot.Status);
+    }
+
+    [Fact]
+    public void WaitingApprovalIsNotOverriddenByOrdinaryActivity()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            Event("reasoning", Now.AddSeconds(-5)),
+            Event("approval_request", Now.AddSeconds(-20))
+        ]);
+
+        Assert.Equal(CodexActivityStatus.WaitingApproval, snapshot.Status);
+        Assert.Equal(Now.AddSeconds(-20), snapshot.EffectiveStateEnteredAt);
+    }
+
+    [Fact]
+    public void ExplicitTaskStartRecoversFromWaitingState()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            Event("task_started", Now.AddSeconds(-5)),
+            Event("approval_request", Now.AddSeconds(-20))
+        ]);
+
+        Assert.Equal(CodexActivityStatus.Thinking, snapshot.Status);
+    }
+
+    [Fact]
+    public void ErrorExpiresAfterRecoveryWindow()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            Event("error", Now.AddMinutes(-6))
+        ]);
+
+        Assert.Equal(CodexActivityStatus.Idle, snapshot.Status);
     }
 
     [Fact]
@@ -171,7 +235,7 @@ public sealed class CodexActivityDetectorTests
     {
         var parser = new JsonQuotaParser();
         var reader = new CodexSessionLogReader(parser, NullLogger<CodexSessionLogReader>.Instance);
-        return new CodexActivityDetector(reader, NullLogger<CodexActivityDetector>.Instance, () => Now);
+        return new CodexActivityDetector(reader, new CodexActivityReducer(), NullLogger<CodexActivityDetector>.Instance, () => Now);
     }
 
     private static string Event(string payloadType, DateTimeOffset timestamp, string rootType = "event_msg")
