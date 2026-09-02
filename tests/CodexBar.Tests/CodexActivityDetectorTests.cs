@@ -283,6 +283,100 @@ public sealed class CodexActivityDetectorTests
     }
 
     [Fact]
+    public async Task ToolWorkingDirectoryOverridesSessionWorkingDirectory()
+    {
+        var detector = CreateDetector(new StubProjectResolver());
+        var context = await detector.DetectContextFromEntriesAsync([
+            new CodexSessionLogEntry(
+                CommandEvent("dotnet test", Now.AddSeconds(-5), @"C:\Repos\中文项目"),
+                SourceFile: "session.jsonl"),
+            new CodexSessionLogEntry(
+                SessionMeta("session-id", @"C:\Generated\english-session-slug"),
+                SourceFile: "session.jsonl")
+        ]);
+
+        Assert.Equal("中文项目", context.ProjectName);
+        Assert.Equal(@"C:\Repos\中文项目", context.WorkingDirectory);
+        Assert.Equal(CurrentAgentAction.Testing, context.CurrentAction);
+    }
+
+    [Fact]
+    public async Task JsonToolArgumentsProvideWorkingDirectory()
+    {
+        var detector = CreateDetector(new StubProjectResolver());
+        var context = await detector.DetectContextFromEntriesAsync([
+            new CodexSessionLogEntry(
+                ToolCallEvent("git status", @"C:\Repos\CodexBar", Now.AddSeconds(-5)),
+                SourceFile: "session.jsonl"),
+            new CodexSessionLogEntry(
+                SessionMeta("session-id", @"C:\Generated\english-session-slug"),
+                SourceFile: "session.jsonl")
+        ]);
+
+        Assert.Equal("CodexBar", context.ProjectName);
+        Assert.Equal(@"C:\Repos\CodexBar", context.WorkingDirectory);
+        Assert.Equal(CurrentAgentAction.Git, context.CurrentAction);
+    }
+
+    [Fact]
+    public async Task WrappedToolInputProvidesWorkingDirectory()
+    {
+        var detector = CreateDetector(new StubProjectResolver());
+        var context = await detector.DetectContextFromEntriesAsync([
+            new CodexSessionLogEntry(
+                WrappedToolCallEvent("dotnet build", @"C:\Repos\CodexBar", Now.AddSeconds(-5)),
+                SourceFile: "session.jsonl"),
+            new CodexSessionLogEntry(
+                SessionMeta("session-id", @"C:\Generated\english-session-slug"),
+                SourceFile: "session.jsonl")
+        ]);
+
+        Assert.Equal("CodexBar", context.ProjectName);
+        Assert.Equal(@"C:\Repos\CodexBar", context.WorkingDirectory);
+        Assert.Equal(CurrentAgentAction.Building, context.CurrentAction);
+    }
+
+    [Fact]
+    public async Task WaitingStateKeepsLatestToolWorkingDirectory()
+    {
+        var detector = CreateDetector(new StubProjectResolver());
+        var context = await detector.DetectContextFromEntriesAsync([
+            new CodexSessionLogEntry(Event("approval_request", Now.AddSeconds(-5)), SourceFile: "session.jsonl"),
+            new CodexSessionLogEntry(
+                CommandEvent("dotnet build", Now.AddSeconds(-20), @"C:\Repos\CodexBar"),
+                SourceFile: "session.jsonl"),
+            new CodexSessionLogEntry(
+                SessionMeta("session-id", @"C:\Generated\english-session-slug"),
+                SourceFile: "session.jsonl")
+        ]);
+
+        Assert.Equal(CodexActivityStatus.WaitingApproval, context.Activity.Status);
+        Assert.Equal("CodexBar", context.ProjectName);
+        Assert.Equal(@"C:\Repos\CodexBar", context.WorkingDirectory);
+    }
+
+    [Fact]
+    public async Task ToolWithoutWorkdirFallsBackToSessionWorkingDirectory()
+    {
+        var detector = CreateDetector(new StubProjectResolver());
+        var context = await detector.DetectContextFromEntriesAsync([
+            new CodexSessionLogEntry(
+                CommandEvent("git status", Now.AddSeconds(-5)),
+                SourceFile: "session.jsonl"),
+            new CodexSessionLogEntry(
+                CommandEvent("dotnet build", Now.AddSeconds(-20), @"C:\Repos\CodexBar"),
+                SourceFile: "session.jsonl"),
+            new CodexSessionLogEntry(
+                SessionMeta("session-id", @"C:\Generated\english-session-slug"),
+                SourceFile: "session.jsonl")
+        ]);
+
+        Assert.Equal("english-session-slug", context.ProjectName);
+        Assert.Equal(@"C:\Generated\english-session-slug", context.WorkingDirectory);
+        Assert.Equal(CurrentAgentAction.Git, context.CurrentAction);
+    }
+
+    [Fact]
     public async Task WaitingApprovalKeepsItsActionWhenNewerCommandArrives()
     {
         var detector = CreateDetector(new StubProjectResolver());
@@ -371,13 +465,42 @@ public sealed class CodexActivityDetectorTests
             payload = new { type = payloadType }
         });
 
-    private static string CommandEvent(string command, DateTimeOffset timestamp)
+    private static string CommandEvent(string command, DateTimeOffset timestamp, string? workdir = null)
         => JsonSerializer.Serialize(new
         {
             type = "event_msg",
             timestamp = timestamp.ToString("O"),
-            payload = new { type = "exec_command_begin", command }
+            payload = new { type = "exec_command_begin", command, workdir }
         });
+
+    private static string ToolCallEvent(string command, string workdir, DateTimeOffset timestamp)
+        => JsonSerializer.Serialize(new
+        {
+            type = "response_item",
+            timestamp = timestamp.ToString("O"),
+            item = new
+            {
+                type = "custom_tool_call",
+                name = "exec_command",
+                arguments = JsonSerializer.Serialize(new { cmd = command, workdir })
+            }
+        });
+
+    private static string WrappedToolCallEvent(string command, string workdir, DateTimeOffset timestamp)
+    {
+        var input = $"const result = await tools.exec_command({JsonSerializer.Serialize(new { cmd = command, workdir })});";
+        return JsonSerializer.Serialize(new
+        {
+            type = "response_item",
+            timestamp = timestamp.ToString("O"),
+            payload = new
+            {
+                type = "custom_tool_call",
+                name = "exec",
+                input
+            }
+        });
+    }
 
     private static string SessionMeta(string id, string cwd)
         => JsonSerializer.Serialize(new

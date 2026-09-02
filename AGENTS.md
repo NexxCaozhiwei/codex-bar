@@ -114,7 +114,7 @@ GitHub Release 由 `.github/workflows/release.yml` 在 tag push 后自动创建�
 - timestamp 解析顺序：顶层 `timestamp`，再解析 payload / item 的完成或创建时间，再用 session 文件 `LastWriteTimeUtc`，仍无法判断时返回 `Unknown`。
 - 错误、网络异常、断线、超时等本地日志字段应映射到 `Error`。
 - 多个 session 必须分别归并；项目名、cwd、动作和状态必须来自同一 session，禁止跨 session 拼接。
-- 项目解析应缓存 cwd 对应的 Git 根目录；失败时回退目录名，空路径或不存在路径不猜测项目名。
+- 项目目录优先使用当前 session 最近工具调用的 `workdir` / `cwd`，缺失时回退 session `cwd`；项目解析应缓存目录对应的 Git 根目录，失败时回退目录名，空路径或不存在路径不猜测项目名。
 - 当前命令只展示规范化短摘要，不展示完整参数、Prompt、聊天正文或代码正文。
 
 修改状态规则时，同步维护 `tests/CodexBar.Tests/CodexActivityDetectorTests.cs`。

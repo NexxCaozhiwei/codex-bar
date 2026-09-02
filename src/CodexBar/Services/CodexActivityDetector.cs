@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using CodexBar.Models;
 using Microsoft.Extensions.Logging;
 
@@ -7,6 +8,11 @@ namespace CodexBar.Services;
 
 public sealed class CodexActivityDetector
 {
+    private static readonly Regex EmbeddedWorkingDirectoryPattern = new(
+        "\"(?:workdir|cwd|working_directory|workingDirectory)\"\\s*:\\s*(?<value>\"(?:\\\\.|[^\"\\\\])*\")",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        TimeSpan.FromMilliseconds(50));
+
     private static readonly HashSet<string> ThinkingEvents = new(StringComparer.OrdinalIgnoreCase)
     {
         "task_started", "turn_started", "reasoning", "agent_message_delta"
@@ -189,6 +195,7 @@ public sealed class CodexActivityDetector
 
                 var semanticValues = EnumerateSemanticValues(root).ToArray();
                 var rawCommand = EnumerateCommandValues(root).FirstOrDefault();
+                var eventWorkingDirectory = ReadEventWorkingDirectory(root);
                 var action = _actionClassifier.Classify(classification.Value.Status, rawCommand, semanticValues);
                 session.Events.Add(new CodexActivityEvent(
                     classification.Value.Status,
@@ -198,7 +205,8 @@ public sealed class CodexActivityDetector
                     classification.Value.IsExplicitRecovery,
                     classification.Value.StartsTask,
                     action.Action,
-                    action.CommandSummary));
+                    action.CommandSummary,
+                    WorkingDirectory: eventWorkingDirectory));
             }
             catch (JsonException)
             {
@@ -335,6 +343,92 @@ public sealed class CodexActivityDetector
         return new SessionMetadata(sessionId, workingDirectory);
     }
 
+    private static string? ReadEventWorkingDirectory(JsonElement root)
+        => ReadWorkingDirectory(root);
+
+    private static string? ReadWorkingDirectory(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var direct = ReadString(element, "workdir", "cwd", "working_directory", "workingDirectory");
+        if (!string.IsNullOrWhiteSpace(direct))
+        {
+            return direct;
+        }
+
+        foreach (var childName in new[] { "payload", "item" })
+        {
+            if (element.TryGetProperty(childName, out var child) &&
+                ReadWorkingDirectory(child) is { } nested)
+            {
+                return nested;
+            }
+        }
+
+        if (!IsToolContainer(element))
+        {
+            return null;
+        }
+
+        foreach (var propertyName in new[] { "arguments", "input" })
+        {
+            if (!element.TryGetProperty(propertyName, out var toolInput))
+            {
+                continue;
+            }
+
+            if (toolInput.ValueKind == JsonValueKind.Object &&
+                ReadWorkingDirectory(toolInput) is { } objectDirectory)
+            {
+                return objectDirectory;
+            }
+
+            if (toolInput.ValueKind != JsonValueKind.String ||
+                string.IsNullOrWhiteSpace(toolInput.GetString()))
+            {
+                continue;
+            }
+
+            var text = toolInput.GetString()!;
+            try
+            {
+                using var document = JsonDocument.Parse(text);
+                if (ReadWorkingDirectory(document.RootElement) is { } jsonDirectory)
+                {
+                    return jsonDirectory;
+                }
+            }
+            catch (JsonException)
+            {
+            }
+
+            if (ReadEmbeddedWorkingDirectory(text) is { } embeddedDirectory)
+            {
+                return embeddedDirectory;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ReadEmbeddedWorkingDirectory(string text)
+    {
+        try
+        {
+            var match = EmbeddedWorkingDirectoryPattern.Match(text);
+            return match.Success
+                ? JsonSerializer.Deserialize<string>(match.Groups["value"].Value)
+                : null;
+        }
+        catch (Exception ex) when (ex is JsonException or RegexMatchTimeoutException)
+        {
+            return null;
+        }
+    }
+
     private static string? ReadString(JsonElement element, params string[] names)
     {
         if (element.ValueKind != JsonValueKind.Object)
@@ -366,6 +460,9 @@ public sealed class CodexActivityDetector
         => CommandEvents.Contains(value) ||
            value.EndsWith("/begin", StringComparison.OrdinalIgnoreCase) ||
            value.EndsWith("_begin", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsToolContainer(JsonElement element)
+        => ReadString(element, "type") is { } type && IsCommandValue(type);
 
     private static bool IsReviewValue(string value)
         => ReviewEvents.Contains(value) || value.Contains("auto_review", StringComparison.OrdinalIgnoreCase);
@@ -436,6 +533,14 @@ public sealed class CodexActivityDetector
         foreach (var value in ReadStringProperties(element, "command", "cmd", "arguments"))
         {
             yield return value;
+        }
+
+        if (IsToolContainer(element))
+        {
+            foreach (var value in ReadStringProperties(element, "input"))
+            {
+                yield return value;
+            }
         }
 
         foreach (var childName in new[] { "payload", "item" })
@@ -522,12 +627,32 @@ public sealed class CodexActivityDetector
         public CodexActivityReduction? Reduce(CodexActivityReducer reducer, DateTimeOffset now)
         {
             var sessionId = SessionId ?? SessionIdFromFile(SourceFile);
-            return reducer.ReduceWithContext(
-                Events.Select(activityEvent => activityEvent with
+            var currentWorkingDirectory = WorkingDirectory;
+            var contextualEvents = Events
+                .OrderBy(activityEvent => activityEvent.Timestamp)
+                .ThenBy(activityEvent => CodexActivityReducer.Priority(activityEvent.Status))
+                .Select(activityEvent =>
                 {
-                    SessionId = sessionId,
-                    WorkingDirectory = WorkingDirectory
-                }),
+                    if (!string.IsNullOrWhiteSpace(activityEvent.WorkingDirectory))
+                    {
+                        currentWorkingDirectory = activityEvent.WorkingDirectory;
+                    }
+                    else if (activityEvent.Status is CodexActivityStatus.Editing or
+                             CodexActivityStatus.RunningCommand or
+                             CodexActivityStatus.RunningTests)
+                    {
+                        currentWorkingDirectory = WorkingDirectory;
+                    }
+
+                    return activityEvent with
+                    {
+                        SessionId = sessionId,
+                        WorkingDirectory = currentWorkingDirectory
+                    };
+                })
+                .ToArray();
+            return reducer.ReduceWithContext(
+                contextualEvents,
                 now);
         }
 
