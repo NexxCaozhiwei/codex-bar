@@ -105,7 +105,7 @@ GitHub Release 由 `.github/workflows/release.yml` 在 tag push 后自动创建�
 核心规则：
 
 - active 事件按语义细分为 `Thinking`、`Editing`、`RunningCommand`、`RunningTests`、`Reviewing`，60 秒内保持对应工作态。
-- `task_complete`、`turn_completed`、`completed` 事件 30 秒内显示 `Completed`。
+- 只有明确的顶层生命周期事件 `task_complete`、`turn_completed` 才在 30 秒内显示 `Completed`；工具调用或 item 内部的 `status: completed` 不代表整项任务完成。
 - 完成事件超过 30 秒后显示 `Idle`。
 - `approval`、`permission` 等事件 5 分钟内显示 `WaitingApproval`；`request_user_input`、`waiting_for_user` 显示 `WaitingUser`，超过后显示 `Idle`。
 - 等待态具有优先级和粘性，普通活动事件不可覆盖；显式恢复、完成、错误或超时可以解除。

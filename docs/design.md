@@ -31,7 +31,9 @@ Codex Bar 使用 Windows 原生 WPF 外壳，并用接近 MVVM 的方式组织�
 - `Unknown`：三灯全暗，并在详情中显示诊断文本。
 
 Reducer 的优先级从高到低为：`Error`、`WaitingApproval`、`WaitingUser`、`RunningTests`、
-`Reviewing`、`RunningCommand`、`Editing`、`Thinking`。完成事件是终结事件，可以结束等待态；
+`Reviewing`、`RunningCommand`、`Editing`、`Thinking`。只有顶层生命周期类型为 `task_complete` 或
+`turn_completed` 的事件才是任务完成终结事件，可以结束等待态；工具或 item 的 `status: completed`
+只表示该局部操作结束。
 `task_started`、`approval_granted`、`input_provided` 等显式恢复事件可以开始或恢复工作。
 
 - 工作态 60 秒没有新活动后恢复为 `Idle`。

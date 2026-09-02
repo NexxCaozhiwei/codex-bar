@@ -28,9 +28,9 @@ public sealed class CodexActivityDetector
         "auto_review", "auto_reviewing", "code_review", "reviewing", "review_started"
     };
 
-    private static readonly HashSet<string> CompletionEvents = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> CompletionEventTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "task_complete", "turn_completed", "completed"
+        "task_complete", "turn_completed"
     };
 
     private static readonly HashSet<string> WaitingUserEvents = new(StringComparer.OrdinalIgnoreCase)
@@ -251,7 +251,7 @@ public sealed class CodexActivityDetector
                 CodexDiagnostics.DescribeActivityError(string.Join(" ", values)));
         }
 
-        if (values.Any(value => CompletionEvents.Contains(value)))
+        if (IsTaskCompletion(root))
         {
             return new ActivityClassification(CodexActivityStatus.Completed);
         }
@@ -299,6 +299,25 @@ public sealed class CodexActivityDetector
         }
 
         return null;
+    }
+
+    private static bool IsTaskCompletion(JsonElement root)
+    {
+        var rootType = ReadString(root, "type");
+        if (rootType is not null && CompletionEventTypes.Contains(rootType))
+        {
+            return true;
+        }
+
+        if (!string.Equals(rootType, "event_msg", StringComparison.OrdinalIgnoreCase) ||
+            !root.TryGetProperty("payload", out var payload) ||
+            payload.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        var payloadType = ReadString(payload, "type");
+        return payloadType is not null && CompletionEventTypes.Contains(payloadType);
     }
 
     private static SessionMetadata ReadSessionMetadata(JsonElement root)

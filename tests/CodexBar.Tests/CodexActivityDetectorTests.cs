@@ -22,6 +22,92 @@ public sealed class CodexActivityDetectorTests
     }
 
     [Fact]
+    public void TurnCompletedWithinGraceMapsToCompleted()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            Event("turn_completed", Now.AddSeconds(-10))
+        ]);
+
+        Assert.Equal(CodexActivityStatus.Completed, snapshot.Status);
+    }
+
+    [Fact]
+    public void CompletedToolCallRemainsWorking()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            JsonSerializer.Serialize(new
+            {
+                type = "response_item",
+                timestamp = Now.AddSeconds(-5).ToString("O"),
+                item = new
+                {
+                    type = "custom_tool_call",
+                    name = "exec_command",
+                    status = "completed",
+                    arguments = "{\"cmd\":\"dotnet build\"}"
+                }
+            })
+        ]);
+
+        Assert.Equal(CodexActivityStatus.RunningCommand, snapshot.Status);
+    }
+
+    [Fact]
+    public void ItemCompletedDoesNotCompleteTask()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            JsonSerializer.Serialize(new
+            {
+                type = "item_completed",
+                timestamp = Now.AddSeconds(-5).ToString("O"),
+                item = new
+                {
+                    type = "custom_tool_call",
+                    name = "exec_command",
+                    status = "completed",
+                    arguments = "{\"cmd\":\"git status\"}"
+                }
+            })
+        ]);
+
+        Assert.Equal(CodexActivityStatus.RunningCommand, snapshot.Status);
+    }
+
+    [Fact]
+    public void GenericCompletedStatusDoesNotCompleteTask()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            JsonSerializer.Serialize(new
+            {
+                type = "event_msg",
+                timestamp = Now.AddSeconds(-5).ToString("O"),
+                payload = new { type = "tool_result", status = "completed" }
+            })
+        ]);
+
+        Assert.Equal(CodexActivityStatus.Idle, snapshot.Status);
+    }
+
+    [Fact]
+    public void GenericCompletedEventTypeDoesNotCompleteTask()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            JsonSerializer.Serialize(new
+            {
+                type = "completed",
+                timestamp = Now.AddSeconds(-5).ToString("O")
+            })
+        ]);
+
+        Assert.Equal(CodexActivityStatus.Idle, snapshot.Status);
+    }
+
+    [Fact]
     public void TaskCompleteOlderThanGraceMapsToIdle()
     {
         var detector = CreateDetector();
