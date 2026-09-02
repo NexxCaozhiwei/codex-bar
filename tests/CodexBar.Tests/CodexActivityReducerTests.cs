@@ -62,4 +62,58 @@ public sealed class CodexActivityReducerTests
         Assert.NotNull(snapshot);
         Assert.Equal(CodexActivityStatus.Completed, snapshot.Status);
     }
+
+    [Fact]
+    public void OpenTaskKeepsWorkingBeyondOrdinaryActiveWindow()
+    {
+        var reducer = new CodexActivityReducer();
+        var snapshot = reducer.Reduce([
+            new CodexActivityEvent(
+                CodexActivityStatus.Thinking,
+                Now.AddMinutes(-5),
+                StartsTask: true),
+            new CodexActivityEvent(
+                CodexActivityStatus.RunningCommand,
+                Now.AddMinutes(-4))
+        ], Now);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(CodexActivityStatus.RunningCommand, snapshot.Status);
+    }
+
+    [Fact]
+    public void OpenTaskProtectionExpiresAtSafetyLimit()
+    {
+        var reducer = new CodexActivityReducer();
+        var snapshot = reducer.Reduce([
+            new CodexActivityEvent(
+                CodexActivityStatus.Thinking,
+                Now.AddMinutes(-31),
+                StartsTask: true)
+        ], Now);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(CodexActivityStatus.Idle, snapshot.Status);
+    }
+
+    [Fact]
+    public void CompletionClosesOpenTaskProtection()
+    {
+        var reducer = new CodexActivityReducer();
+        var snapshot = reducer.Reduce([
+            new CodexActivityEvent(
+                CodexActivityStatus.Thinking,
+                Now.AddMinutes(-10),
+                StartsTask: true),
+            new CodexActivityEvent(
+                CodexActivityStatus.Completed,
+                Now.AddMinutes(-2)),
+            new CodexActivityEvent(
+                CodexActivityStatus.RunningCommand,
+                Now.AddSeconds(-61))
+        ], Now);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(CodexActivityStatus.Idle, snapshot.Status);
+    }
 }

@@ -5,6 +5,7 @@ namespace CodexBar.Services;
 public sealed class CodexActivityReducer
 {
     public static readonly TimeSpan ActiveWindow = TimeSpan.FromSeconds(60);
+    public static readonly TimeSpan OpenTaskActiveWindow = TimeSpan.FromMinutes(30);
     public static readonly TimeSpan CompletionGrace = TimeSpan.FromSeconds(30);
     public static readonly TimeSpan WaitingWindow = TimeSpan.FromMinutes(5);
     public static readonly TimeSpan ErrorWindow = TimeSpan.FromMinutes(5);
@@ -55,13 +56,23 @@ public sealed class CodexActivityReducer
     private static ReducedState Start(CodexActivityEvent activityEvent, ReducedState? previous)
     {
         var taskStartedAt = previous?.TaskStartedAt;
+        var hasOpenTask = previous?.HasOpenTask ?? false;
         if (activityEvent.StartsTask ||
             (activityEvent.Status.IsWorking() && taskStartedAt is null))
         {
             taskStartedAt = activityEvent.Timestamp;
         }
 
-        return new ReducedState(activityEvent, taskStartedAt);
+        if (activityEvent.StartsTask)
+        {
+            hasOpenTask = true;
+        }
+        else if (activityEvent.Status is CodexActivityStatus.Completed or CodexActivityStatus.Error)
+        {
+            hasOpenTask = false;
+        }
+
+        return new ReducedState(activityEvent, taskStartedAt, hasOpenTask);
     }
 
     private static bool ShouldAccept(CodexActivityEvent current, CodexActivityEvent next)
@@ -104,7 +115,7 @@ public sealed class CodexActivityReducer
     {
         var activityEvent = state.Event;
         var age = ClampAge(now - activityEvent.Timestamp);
-        var timeout = TimeoutFor(activityEvent.Status);
+        var timeout = TimeoutFor(activityEvent.Status, state.HasOpenTask);
 
         if (timeout is { } value && age > value)
         {
@@ -138,11 +149,11 @@ public sealed class CodexActivityReducer
             activityEvent);
     }
 
-    private static TimeSpan? TimeoutFor(CodexActivityStatus status)
+    private static TimeSpan? TimeoutFor(CodexActivityStatus status, bool hasOpenTask)
     {
         if (status.IsWorking())
         {
-            return ActiveWindow;
+            return hasOpenTask ? OpenTaskActiveWindow : ActiveWindow;
         }
 
         if (status.IsWaiting())
@@ -175,7 +186,10 @@ public sealed class CodexActivityReducer
     private static TimeSpan ClampAge(TimeSpan age)
         => age < TimeSpan.Zero ? TimeSpan.Zero : age;
 
-    private readonly record struct ReducedState(CodexActivityEvent Event, DateTimeOffset? TaskStartedAt);
+    private readonly record struct ReducedState(
+        CodexActivityEvent Event,
+        DateTimeOffset? TaskStartedAt,
+        bool HasOpenTask);
 }
 
 public readonly record struct CodexActivityEvent(

@@ -104,13 +104,13 @@ GitHub Release 由 `.github/workflows/release.yml` 在 tag push 后自动创建�
 
 核心规则：
 
-- active 事件按语义细分为 `Thinking`、`Editing`、`RunningCommand`、`RunningTests`、`Reviewing`，60 秒内保持对应工作态。
+- active 事件按语义细分为 `Thinking`、`Editing`、`RunningCommand`、`RunningTests`、`Reviewing`；普通工作事件保持 60 秒，`task_started` / `turn_started` 显式开启且尚未结束的任务最多保持 30 分钟。
 - 只有明确的顶层生命周期事件 `task_complete`、`turn_completed` 才在 30 秒内显示 `Completed`；工具调用或 item 内部的 `status: completed` 不代表整项任务完成。
 - 完成事件超过 30 秒后显示 `Idle`。
 - `approval`、`permission` 等事件 5 分钟内显示 `WaitingApproval`；`request_user_input`、`waiting_for_user` 显示 `WaitingUser`，超过后显示 `Idle`。
 - 等待态具有优先级和粘性，普通活动事件不可覆盖；显式恢复、完成、错误或超时可以解除。
 - 错误态保留 5 分钟，显式恢复、完成或超时后解除。
-- active 事件超过 60 秒且没有后续完成事件时，优先显示 `Idle`，详情说明“最近未检测到新的 Codex 活动”。
+- 普通 active 事件超过 60 秒，或显式开启的任务超过 30 分钟且没有后续事件时，优先显示 `Idle`，详情说明“最近未检测到新的 Codex 活动”。
 - timestamp 解析顺序：顶层 `timestamp`，再解析 payload / item 的完成或创建时间，再用 session 文件 `LastWriteTimeUtc`，仍无法判断时返回 `Unknown`。
 - 错误、网络异常、断线、超时等本地日志字段应映射到 `Error`。
 - 多个 session 必须分别归并；项目名、cwd、动作和状态必须来自同一 session，禁止跨 session 拼接。

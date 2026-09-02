@@ -41,7 +41,7 @@
                         <ColumnDefinition Width="150" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="刷新间隔（秒）" Foreground="#9DA7B3" VerticalAlignment="Center" />
+                    <TextBlock Text="额度刷新间隔（秒）" Foreground="#9DA7B3" VerticalAlignment="Center" />
                     <TextBox x:Name="RefreshBox" Grid.Column="1" Height="26" VerticalContentAlignment="Center" />
                 </Grid>
 

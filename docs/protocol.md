@@ -83,6 +83,8 @@ Codex Bar 扫描：
 %USERPROFILE%\.codex\sessions\**\*.jsonl
 ```
 
+首次扫描后会监听 session 目录中新建、删除和重命名的 JSONL 文件，使新会话无需等待文件列表缓存到期即可被发现；无目录变更时仍复用 30 秒文件列表缓存。活动状态每 3 秒读取一次，额度读取使用设置中的独立刷新间隔。
+
 活动上下文还会读取 `session_meta.payload.id` 和 `session_meta.payload.cwd`，并优先使用最近工具调用参数中的
 `workdir` / `cwd` 作为实际项目目录。状态事件始终按 session
 文件隔离后再归并；命令只从结构化的 `command`、`cmd`、`arguments` 或工具 `input` 字段分类。UI 不读取或展示

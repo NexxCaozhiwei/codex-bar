@@ -8,6 +8,8 @@ namespace CodexBar.ViewModels;
 
 public sealed class MainViewModel : ObservableObject
 {
+    private static readonly TimeSpan ActivityRefreshInterval = TimeSpan.FromSeconds(3);
+
     private readonly QuotaService _quotaService;
     private readonly CodexActivityDetector _activityDetector;
     private readonly ActivityNotificationService _notificationService;
@@ -15,9 +17,12 @@ public sealed class MainViewModel : ObservableObject
     private readonly StartupService _startupService;
     private readonly WindowDockingService _dockingService;
     private readonly TrayService _trayService;
-    private readonly DispatcherTimer _timer = new();
+    private readonly DispatcherTimer _quotaTimer = new();
+    private readonly DispatcherTimer _activityTimer = new();
     private readonly DispatcherTimer _durationTimer = new() { Interval = TimeSpan.FromSeconds(1) };
-    private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly SemaphoreSlim _manualRefreshGate = new(1, 1);
+    private readonly SemaphoreSlim _quotaRefreshGate = new(1, 1);
+    private readonly SemaphoreSlim _activityRefreshGate = new(1, 1);
     private Window? _mainWindow;
     private QuotaSnapshot _quota = QuotaSnapshot.Empty("尚未刷新。");
     private CodexActivitySnapshot _activity = new(CodexActivityStatus.Idle, DateTimeOffset.Now, "尚未刷新。");
@@ -48,7 +53,7 @@ public sealed class MainViewModel : ObservableObject
         SettingsCommand = new RelayCommand(() => ShowSettings());
         DetailsCommand = new RelayCommand(() => ShowDetails());
 
-        ConfigureTimer();
+        ConfigureTimers();
         _durationTimer.Tick += (_, _) =>
         {
             RaisePropertyChanged(nameof(StatusDurationText));
@@ -218,7 +223,7 @@ public sealed class MainViewModel : ObservableObject
     {
         _mainWindow = window;
         ApplyWindowVisuals();
-        ConfigureTimer();
+        ConfigureTimers();
     }
 
     public void ApplyWindowPlacement()
@@ -231,7 +236,7 @@ public sealed class MainViewModel : ObservableObject
 
     public async Task RefreshAsync()
     {
-        if (!await _refreshGate.WaitAsync(0))
+        if (!await _manualRefreshGate.WaitAsync(0))
         {
             return;
         }
@@ -239,16 +244,48 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             IsRefreshing = true;
+            await Task.WhenAll(RefreshQuotaAsync(), RefreshActivityAsync());
+        }
+        finally
+        {
+            IsRefreshing = false;
+            _manualRefreshGate.Release();
+        }
+    }
+
+    private async Task RefreshQuotaAsync()
+    {
+        if (!await _quotaRefreshGate.WaitAsync(0))
+        {
+            return;
+        }
+
+        try
+        {
             _quota = await _quotaService.ReadAsync(Settings);
+            RaiseAllDisplayProperties();
+            UpdateTrayText();
+        }
+        finally
+        {
+            _quotaRefreshGate.Release();
+        }
+    }
+
+    private async Task RefreshActivityAsync()
+    {
+        if (!await _activityRefreshGate.WaitAsync(0))
+        {
+            return;
+        }
+
+        try
+        {
             _agentContext = await _activityDetector.DetectContextAsync();
             _activity = _agentContext.Activity;
             var notification = _notificationService.Observe(_activity, Settings);
             RaiseAllDisplayProperties();
-            var primaryWindow = DisplayWindows().FirstOrDefault();
-            var quotaText = primaryWindow is null
-                ? (_quota.Credits?.Unlimited == true ? "额度无限" : "额度不可用")
-                : $"{primaryWindow.Label} 剩余 {primaryWindow.RemainingPercent:0}%";
-            _trayService.UpdateText($"Codex Bar - {StatusSummaryText} - {quotaText}");
+            UpdateTrayText();
             if (notification is not null)
             {
                 _trayService.ShowNotification(notification);
@@ -256,9 +293,17 @@ public sealed class MainViewModel : ObservableObject
         }
         finally
         {
-            IsRefreshing = false;
-            _refreshGate.Release();
+            _activityRefreshGate.Release();
         }
+    }
+
+    private void UpdateTrayText()
+    {
+        var primaryWindow = DisplayWindows().FirstOrDefault();
+        var quotaText = primaryWindow is null
+            ? (_quota.Credits?.Unlimited == true ? "额度无限" : "额度不可用")
+            : $"{primaryWindow.Label} 剩余 {primaryWindow.RemainingPercent:0}%";
+        _trayService.UpdateText($"Codex Bar - {StatusSummaryText} - {quotaText}");
     }
 
     public void ShowDetails()
@@ -293,7 +338,7 @@ public sealed class MainViewModel : ObservableObject
             3600);
         _settingsService.Save(Settings);
         _startupService.SetEnabled(Settings.StartWithWindows);
-        ConfigureTimer();
+        ConfigureTimers();
         if (_mainWindow is not null)
         {
             ApplyWindowVisuals();
@@ -339,16 +384,24 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    private void ConfigureTimer()
+    private void ConfigureTimers()
     {
-        _timer.Stop();
-        _timer.Interval = TimeSpan.FromSeconds(Math.Clamp(Settings.RefreshIntervalSeconds, 5, 3600));
-        _timer.Tick -= OnTimerTick;
-        _timer.Tick += OnTimerTick;
-        _timer.Start();
+        _quotaTimer.Stop();
+        _quotaTimer.Interval = TimeSpan.FromSeconds(Math.Clamp(Settings.RefreshIntervalSeconds, 5, 3600));
+        _quotaTimer.Tick -= OnQuotaTimerTick;
+        _quotaTimer.Tick += OnQuotaTimerTick;
+        _quotaTimer.Start();
+
+        _activityTimer.Stop();
+        _activityTimer.Interval = ActivityRefreshInterval;
+        _activityTimer.Tick -= OnActivityTimerTick;
+        _activityTimer.Tick += OnActivityTimerTick;
+        _activityTimer.Start();
     }
 
-    private async void OnTimerTick(object? sender, EventArgs e) => await RefreshAsync();
+    private async void OnQuotaTimerTick(object? sender, EventArgs e) => await RefreshQuotaAsync();
+
+    private async void OnActivityTimerTick(object? sender, EventArgs e) => await RefreshActivityAsync();
 
     private void ApplyWindowVisuals()
     {

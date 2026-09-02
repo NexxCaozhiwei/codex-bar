@@ -7,7 +7,7 @@ Codex Bar 使用 Windows 原生 WPF 外壳，并用接近 MVVM 的方式组织�
 - `MainWindow`：三行紧凑状态条。
 - `DetailsWindow`：额度和诊断详情。
 - `SettingsWindow`：用户设置编辑。
-- `MainViewModel`：刷新调度和界面显示属性。
+- `MainViewModel`：独立调度额度和活动刷新，并提供界面显示属性。活动状态每 3 秒刷新，额度沿用设置中的刷新间隔，额度读取延迟不会阻塞状态更新。
 - `QuotaService`：优先 app-server，失败后回退 jsonl。
 - `CodexActivityDetector`：把最近 session JSONL 生命周期事件归一化为活动事件。
 - `CodexActivityReducer`：按时间、优先级、粘性状态和超时窗口归并活动事件。
@@ -36,7 +36,8 @@ Reducer 的优先级从高到低为：`Error`、`WaitingApproval`、`WaitingUser
 只表示该局部操作结束。
 `task_started`、`approval_granted`、`input_provided` 等显式恢复事件可以开始或恢复工作。
 
-- 工作态 60 秒没有新活动后恢复为 `Idle`。
+- 没有显式任务开始事件的工作态，60 秒没有新活动后恢复为 `Idle`。
+- `task_started` / `turn_started` 开启的任务，在没有完成或错误事件时最多保持工作态 30 分钟，以覆盖长时间运行的工具；超过安全窗口后恢复为 `Idle`。
 - `Completed` 保留 30 秒后恢复为 `Idle`。
 - 等待态保留 5 分钟；普通活动不会覆盖等待态。
 - `Error` 保留 5 分钟，显式恢复、完成或超时后解除。

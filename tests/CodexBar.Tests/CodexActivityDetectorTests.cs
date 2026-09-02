@@ -142,6 +142,17 @@ public sealed class CodexActivityDetectorTests
     }
 
     [Fact]
+    public void ExplicitTurnStartKeepsLongRunningTurnActive()
+    {
+        var detector = CreateDetector();
+        var snapshot = detector.DetectFromLines([
+            Event("turn_started", Now.AddMinutes(-4))
+        ]);
+
+        Assert.Equal(CodexActivityStatus.Thinking, snapshot.Status);
+    }
+
+    [Fact]
     public void MissingTimestampDoesNotForceWorkingForever()
     {
         var detector = CreateDetector();

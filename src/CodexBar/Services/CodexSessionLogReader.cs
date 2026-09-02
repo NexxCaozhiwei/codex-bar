@@ -4,20 +4,31 @@ using Microsoft.Extensions.Logging;
 
 namespace CodexBar.Services;
 
-public sealed class CodexSessionLogReader
+public sealed class CodexSessionLogReader : IDisposable
 {
     private const int MaxFilesToScan = 120;
     private const int MaxBytesPerFile = 4 * 1024 * 1024;
     private readonly JsonQuotaParser _parser;
     private readonly ILogger<CodexSessionLogReader> _logger;
+    private readonly string _sessionsRoot;
+    private readonly object _fileCacheLock = new();
     private IReadOnlyList<FileInfo> _cachedFiles = [];
     private DateTimeOffset _lastScan = DateTimeOffset.MinValue;
     private string? _lastScanError;
+    private FileSystemWatcher? _sessionWatcher;
+    private bool _fileListDirty = true;
 
-    public CodexSessionLogReader(JsonQuotaParser parser, ILogger<CodexSessionLogReader> logger)
+    public CodexSessionLogReader(
+        JsonQuotaParser parser,
+        ILogger<CodexSessionLogReader> logger,
+        string? sessionsRoot = null)
     {
         _parser = parser;
         _logger = logger;
+        _sessionsRoot = sessionsRoot ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".codex",
+            "sessions");
     }
 
     public Task<QuotaSnapshot> ReadLatestQuotaAsync(DateTimeOffset? newerThanAppServer = null, CancellationToken cancellationToken = default)
@@ -130,42 +141,102 @@ public sealed class CodexSessionLogReader
 
     private IReadOnlyList<FileInfo> GetCandidateFiles()
     {
-        if ((DateTimeOffset.Now - _lastScan).TotalSeconds < 30 && _cachedFiles.Count > 0)
+        lock (_fileCacheLock)
         {
-            return _cachedFiles;
-        }
+            if (!Directory.Exists(_sessionsRoot))
+            {
+                _lastScanError = null;
+                _cachedFiles = [];
+                _lastScan = DateTimeOffset.Now;
+                _fileListDirty = false;
+                return _cachedFiles;
+            }
 
-        var root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".codex",
-            "sessions");
+            EnsureSessionWatcher();
+            if (!_fileListDirty && (DateTimeOffset.Now - _lastScan).TotalSeconds < 30)
+            {
+                return _cachedFiles;
+            }
 
-        if (!Directory.Exists(root))
-        {
-            _lastScanError = null;
-            _cachedFiles = [];
+            try
+            {
+                _cachedFiles = Directory.EnumerateFiles(_sessionsRoot, "*.jsonl", SearchOption.AllDirectories)
+                    .Select(path => new FileInfo(path))
+                    .OrderByDescending(file => file.LastWriteTimeUtc)
+                    .Take(MaxFilesToScan)
+                    .ToArray();
+                _lastScanError = null;
+                _fileListDirty = false;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                _logger.LogWarning(ex, "扫描 Codex session 日志目录失败：{Root}", _sessionsRoot);
+                _cachedFiles = [];
+                _lastScanError = CodexDiagnostics.DescribeSessionLogFailure(ex.Message);
+                _fileListDirty = false;
+            }
+
             _lastScan = DateTimeOffset.Now;
             return _cachedFiles;
+        }
+    }
+
+    private void EnsureSessionWatcher()
+    {
+        if (_sessionWatcher is not null)
+        {
+            return;
         }
 
         try
         {
-            _cachedFiles = Directory.EnumerateFiles(root, "*.jsonl", SearchOption.AllDirectories)
-                .Select(path => new FileInfo(path))
-                .OrderByDescending(file => file.LastWriteTimeUtc)
-                .Take(MaxFilesToScan)
-                .ToArray();
-            _lastScanError = null;
+            _sessionWatcher = new FileSystemWatcher(_sessionsRoot, "*.jsonl")
+            {
+                IncludeSubdirectories = true,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.CreationTime
+            };
+            _sessionWatcher.Created += OnSessionFilesChanged;
+            _sessionWatcher.Deleted += OnSessionFilesChanged;
+            _sessionWatcher.Renamed += OnSessionFileRenamed;
+            _sessionWatcher.Error += OnSessionWatcherError;
+            _sessionWatcher.EnableRaisingEvents = true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
-            _logger.LogWarning(ex, "扫描 Codex session 日志目录失败：{Root}", root);
-            _cachedFiles = [];
-            _lastScanError = CodexDiagnostics.DescribeSessionLogFailure(ex.Message);
+            _logger.LogDebug(ex, "无法监听 Codex session 日志目录：{Root}", _sessionsRoot);
+            _sessionWatcher?.Dispose();
+            _sessionWatcher = null;
         }
+    }
 
-        _lastScan = DateTimeOffset.Now;
-        return _cachedFiles;
+    private void OnSessionFilesChanged(object sender, FileSystemEventArgs e)
+    {
+        lock (_fileCacheLock)
+        {
+            _fileListDirty = true;
+        }
+    }
+
+    private void OnSessionFileRenamed(object sender, RenamedEventArgs e)
+        => OnSessionFilesChanged(sender, e);
+
+    private void OnSessionWatcherError(object sender, ErrorEventArgs e)
+    {
+        lock (_fileCacheLock)
+        {
+            _fileListDirty = true;
+            _sessionWatcher?.Dispose();
+            _sessionWatcher = null;
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (_fileCacheLock)
+        {
+            _sessionWatcher?.Dispose();
+            _sessionWatcher = null;
+        }
     }
 
     private static IEnumerable<string> ReadTailLines(FileInfo file)

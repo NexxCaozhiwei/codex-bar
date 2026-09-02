@@ -302,7 +302,9 @@ public sealed class CodexActivityDetector
 
         if (values.Any(value => ThinkingEvents.Contains(value)))
         {
-            var startsTask = values.Any(value => value.Equals("task_started", StringComparison.OrdinalIgnoreCase));
+            var startsTask = values.Any(value =>
+                value.Equals("task_started", StringComparison.OrdinalIgnoreCase) ||
+                value.Equals("turn_started", StringComparison.OrdinalIgnoreCase));
             return new ActivityClassification(CodexActivityStatus.Thinking, IsExplicitRecovery: startsTask, StartsTask: startsTask);
         }
 
