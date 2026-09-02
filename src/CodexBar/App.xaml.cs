@@ -26,6 +26,11 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<CodexAppServerClient>();
                 services.AddSingleton<CodexSessionLogReader>();
                 services.AddSingleton<CodexActivityReducer>();
+                services.AddSingleton<ActionClassifier>();
+                services.AddSingleton<GitRootLocator>();
+                services.AddSingleton<IGitRootLocator>(services => services.GetRequiredService<GitRootLocator>());
+                services.AddSingleton<ProjectResolver>();
+                services.AddSingleton<IProjectResolver>(services => services.GetRequiredService<ProjectResolver>());
                 services.AddSingleton<CodexActivityDetector>();
                 services.AddSingleton<ActivityNotificationService>();
                 services.AddSingleton<QuotaService>();

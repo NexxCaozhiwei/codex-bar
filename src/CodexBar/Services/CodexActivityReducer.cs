@@ -10,6 +10,9 @@ public sealed class CodexActivityReducer
     public static readonly TimeSpan ErrorWindow = TimeSpan.FromMinutes(5);
 
     public CodexActivitySnapshot? Reduce(IEnumerable<CodexActivityEvent> events, DateTimeOffset now)
+        => ReduceWithContext(events, now)?.Activity;
+
+    public CodexActivityReduction? ReduceWithContext(IEnumerable<CodexActivityEvent> events, DateTimeOffset now)
     {
         ReducedState? current = null;
 
@@ -31,7 +34,7 @@ public sealed class CodexActivityReducer
             current = Start(activityEvent, current);
         }
 
-        return current is null ? null : CreateSnapshot(current.Value, now);
+        return current is null ? null : CreateReduction(current.Value, now);
     }
 
     public static int Priority(CodexActivityStatus status) => status switch
@@ -97,7 +100,7 @@ public sealed class CodexActivityReducer
         return true;
     }
 
-    private static CodexActivitySnapshot CreateSnapshot(ReducedState state, DateTimeOffset now)
+    private static CodexActivityReduction CreateReduction(ReducedState state, DateTimeOffset now)
     {
         var activityEvent = state.Event;
         var age = ClampAge(now - activityEvent.Timestamp);
@@ -108,22 +111,31 @@ public sealed class CodexActivityReducer
             var detail = activityEvent.Status == CodexActivityStatus.Completed
                 ? "最近任务已完成，当前空闲。"
                 : "最近未检测到新的 Codex 活动。";
-            return new CodexActivitySnapshot(
-                CodexActivityStatus.Idle,
-                activityEvent.Timestamp,
-                detail,
-                activityEvent.SourceFile,
-                activityEvent.Timestamp + value,
-                state.TaskStartedAt);
+            return new CodexActivityReduction(
+                new CodexActivitySnapshot(
+                    CodexActivityStatus.Idle,
+                    activityEvent.Timestamp,
+                    detail,
+                    activityEvent.SourceFile,
+                    activityEvent.Timestamp + value,
+                    state.TaskStartedAt),
+                activityEvent with
+                {
+                    Status = CodexActivityStatus.Idle,
+                    CurrentAction = CurrentAgentAction.Idle,
+                    CurrentCommand = null
+                });
         }
 
-        return new CodexActivitySnapshot(
-            activityEvent.Status,
-            activityEvent.Timestamp,
-            activityEvent.Detail ?? DetailFor(activityEvent.Status),
-            activityEvent.SourceFile,
-            activityEvent.Timestamp,
-            state.TaskStartedAt);
+        return new CodexActivityReduction(
+            new CodexActivitySnapshot(
+                activityEvent.Status,
+                activityEvent.Timestamp,
+                activityEvent.Detail ?? DetailFor(activityEvent.Status),
+                activityEvent.SourceFile,
+                activityEvent.Timestamp,
+                state.TaskStartedAt),
+            activityEvent);
     }
 
     private static TimeSpan? TimeoutFor(CodexActivityStatus status)
@@ -172,4 +184,12 @@ public readonly record struct CodexActivityEvent(
     string? SourceFile = null,
     string? Detail = null,
     bool IsExplicitRecovery = false,
-    bool StartsTask = false);
+    bool StartsTask = false,
+    CurrentAgentAction CurrentAction = CurrentAgentAction.Unknown,
+    string? CurrentCommand = null,
+    string? SessionId = null,
+    string? WorkingDirectory = null);
+
+public sealed record CodexActivityReduction(
+    CodexActivitySnapshot Activity,
+    CodexActivityEvent EffectiveEvent);

@@ -11,6 +11,8 @@ Codex Bar 使用 Windows 原生 WPF 外壳，并用接近 MVVM 的方式组织�
 - `QuotaService`：优先 app-server，失败后回退 jsonl。
 - `CodexActivityDetector`：把最近 session JSONL 生命周期事件归一化为活动事件。
 - `CodexActivityReducer`：按时间、优先级、粘性状态和超时窗口归并活动事件。
+- `ActionClassifier`：把内部状态和结构化命令归纳为面向用户的当前动作，并生成脱敏的短命令摘要。
+- `ProjectResolver`：从 session `cwd` 解析 Git 根目录和项目名，按 cwd 缓存成功与失败结果。
 - `ActivityNotificationService`：只根据稳定状态跃迁生成关键事件通知。
 - `TrayService`：Windows Forms `NotifyIcon` 托盘集成。
 - `StartupService`：当前用户开机启动注册。
@@ -38,6 +40,19 @@ Reducer 的优先级从高到低为：`Error`、`WaitingApproval`、`WaitingUser
 - `Error` 保留 5 分钟，显式恢复、完成或超时后解除。
 
 快照同时记录状态进入时间和任务开始时间，主状态条显示紧凑持续时间，详情页显示完整持续时间。
+
+## 当前 Agent 上下文
+
+`CurrentAgentContext` 把以下字段绑定为同一份不可变快照：session、项目名、工作目录、ActivityState、
+CurrentAction、简化命令、开始时间和最后更新时间。Detector 先按 session 文件分组，每个 session 独立进入
+Reducer，再选择最近相关事件所属的 session，因此不会组合“旧项目名 + 新状态”。
+
+项目识别顺序为 session `cwd` → `git rev-parse --show-toplevel` → Git 根目录名 → 普通目录名。
+空路径或不存在路径不猜测项目名。Git 命令不可用或目录不是仓库时回退到 cwd 目录名；同一 cwd 不重复启动 Git 进程。
+
+动作分类保持为纯逻辑：测试命令映射到 `Testing`，构建命令映射到 `Building`，Git 子命令映射到
+`Git`，搜索命令和搜索 tool call 映射到 `Searching`，其余命令映射到 `Running`。详情页只显示
+可识别的规范化命令，未知命令只保留 executable 和省略号，不保存或展示参数正文。
 
 ## 通知策略
 

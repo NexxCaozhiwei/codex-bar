@@ -179,6 +179,39 @@ public sealed class CodexActivityDetectorTests
     }
 
     [Fact]
+    public async Task NewestSessionSwitchesProjectStateAndActionTogether()
+    {
+        var detector = CreateDetector(new StubProjectResolver());
+        var context = await detector.DetectContextFromEntriesAsync([
+            new CodexSessionLogEntry(CommandEvent("git status", Now.AddSeconds(-5)), SourceFile: "session-b.jsonl"),
+            new CodexSessionLogEntry(SessionMeta("session-b", @"C:\Repos\项目乙"), SourceFile: "session-b.jsonl"),
+            new CodexSessionLogEntry(CommandEvent("dotnet test", Now.AddSeconds(-10)), SourceFile: "session-a.jsonl"),
+            new CodexSessionLogEntry(SessionMeta("session-a", @"C:\Repos\project-a"), SourceFile: "session-a.jsonl")
+        ]);
+
+        Assert.Equal("session-b", context.SessionId);
+        Assert.Equal("项目乙", context.ProjectName);
+        Assert.Equal(CodexActivityStatus.RunningCommand, context.Activity.Status);
+        Assert.Equal(CurrentAgentAction.Git, context.CurrentAction);
+        Assert.Equal("git status", context.CurrentCommand);
+    }
+
+    [Fact]
+    public async Task WaitingApprovalKeepsItsActionWhenNewerCommandArrives()
+    {
+        var detector = CreateDetector(new StubProjectResolver());
+        var context = await detector.DetectContextFromEntriesAsync([
+            new CodexSessionLogEntry(CommandEvent("dotnet build", Now.AddSeconds(-5)), SourceFile: "session.jsonl"),
+            new CodexSessionLogEntry(Event("approval_request", Now.AddSeconds(-20)), SourceFile: "session.jsonl"),
+            new CodexSessionLogEntry(SessionMeta("session-id", @"C:\Repos\sample"), SourceFile: "session.jsonl")
+        ]);
+
+        Assert.Equal(CodexActivityStatus.WaitingApproval, context.Activity.Status);
+        Assert.Equal(CurrentAgentAction.WaitingApproval, context.CurrentAction);
+        Assert.Null(context.CurrentCommand);
+    }
+
+    [Fact]
     public void NetworkFailureMessageMapsToError()
     {
         var detector = CreateDetector();
@@ -231,11 +264,17 @@ public sealed class CodexActivityDetectorTests
         Assert.Contains("认证已过期", snapshot.Detail);
     }
 
-    private static CodexActivityDetector CreateDetector()
+    private static CodexActivityDetector CreateDetector(IProjectResolver? projectResolver = null)
     {
         var parser = new JsonQuotaParser();
         var reader = new CodexSessionLogReader(parser, NullLogger<CodexSessionLogReader>.Instance);
-        return new CodexActivityDetector(reader, new CodexActivityReducer(), NullLogger<CodexActivityDetector>.Instance, () => Now);
+        return new CodexActivityDetector(
+            reader,
+            new CodexActivityReducer(),
+            new ActionClassifier(),
+            projectResolver ?? new StubProjectResolver(),
+            NullLogger<CodexActivityDetector>.Instance,
+            () => Now);
     }
 
     private static string Event(string payloadType, DateTimeOffset timestamp, string rootType = "event_msg")
@@ -245,4 +284,30 @@ public sealed class CodexActivityDetectorTests
             timestamp = timestamp.ToString("O"),
             payload = new { type = payloadType }
         });
+
+    private static string CommandEvent(string command, DateTimeOffset timestamp)
+        => JsonSerializer.Serialize(new
+        {
+            type = "event_msg",
+            timestamp = timestamp.ToString("O"),
+            payload = new { type = "exec_command_begin", command }
+        });
+
+    private static string SessionMeta(string id, string cwd)
+        => JsonSerializer.Serialize(new
+        {
+            type = "session_meta",
+            payload = new { id, cwd }
+        });
+
+    private sealed class StubProjectResolver : IProjectResolver
+    {
+        public Task<ProjectResolution> ResolveAsync(string? workingDirectory, CancellationToken cancellationToken = default)
+        {
+            var projectName = string.IsNullOrWhiteSpace(workingDirectory)
+                ? null
+                : Path.GetFileName(Path.TrimEndingDirectorySeparator(workingDirectory));
+            return Task.FromResult(new ProjectResolution(projectName, workingDirectory, null));
+        }
+    }
 }

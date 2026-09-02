@@ -21,6 +21,7 @@ public sealed class MainViewModel : ObservableObject
     private Window? _mainWindow;
     private QuotaSnapshot _quota = QuotaSnapshot.Empty("尚未刷新。");
     private CodexActivitySnapshot _activity = new(CodexActivityStatus.Idle, DateTimeOffset.Now, "尚未刷新。");
+    private CurrentAgentContext _agentContext;
     private QuotaDisplayMode _quotaDisplayMode = QuotaDisplayMode.Remaining;
     private bool _isRefreshing;
 
@@ -40,6 +41,7 @@ public sealed class MainViewModel : ObservableObject
         _startupService = startupService;
         _dockingService = dockingService;
         _trayService = trayService;
+        _agentContext = CurrentAgentContext.Empty(_activity);
         Settings = _settingsService.Load();
         Settings.StartWithWindows = _startupService.IsEnabled();
         RefreshCommand = new RelayCommand(async _ => await RefreshAsync(), _ => !IsRefreshing);
@@ -50,6 +52,7 @@ public sealed class MainViewModel : ObservableObject
         _durationTimer.Tick += (_, _) =>
         {
             RaisePropertyChanged(nameof(StatusDurationText));
+            RaisePropertyChanged(nameof(StatusDurationShortText));
             RaisePropertyChanged(nameof(StatusSummaryText));
         };
         _durationTimer.Start();
@@ -77,9 +80,46 @@ public sealed class MainViewModel : ObservableObject
 
     public string StatusText => FormatStatus(_activity.Status);
 
-    public string StatusSummaryText => $"{StatusText} · {FormatCompactDuration(StateDuration)}";
+    public string StatusSummaryText
+    {
+        get
+        {
+            if (_activity.Status == CodexActivityStatus.Idle)
+            {
+                return "Idle";
+            }
+
+            var project = string.IsNullOrWhiteSpace(_agentContext.ProjectName)
+                ? null
+                : _agentContext.ProjectName;
+            return project is null
+                ? $"{CurrentActionText}  {StatusDurationShortText}"
+                : $"{project} · {CurrentActionText}  {StatusDurationShortText}";
+        }
+    }
 
     public string StatusDurationText => FormatDuration(StateDuration);
+
+    public string StatusDurationShortText => _activity.Status == CodexActivityStatus.Idle
+        ? ""
+        : FormatCompactDuration(StateDuration);
+
+    public string ProjectNameText => _agentContext.ProjectName ?? "未识别";
+
+    public string ProjectDisplayText => _activity.Status == CodexActivityStatus.Idle ||
+                                        string.IsNullOrWhiteSpace(_agentContext.ProjectName)
+        ? ""
+        : $"{_agentContext.ProjectName} ·";
+
+    public string CurrentActionText => _agentContext.CurrentAction.DisplayName();
+
+    public string CurrentCommandText => _agentContext.CurrentCommand ?? "无";
+
+    public string WorkingDirectoryText => _agentContext.WorkingDirectory ?? "未识别";
+
+    public string CurrentSessionText => FormatSessionId(_agentContext.SessionId);
+
+    public string ActivityStateText => FormatActivityState(_activity.Status);
 
     public string DetailStatusText => _activity.Detail;
 
@@ -200,14 +240,15 @@ public sealed class MainViewModel : ObservableObject
         {
             IsRefreshing = true;
             _quota = await _quotaService.ReadAsync(Settings);
-            _activity = await _activityDetector.DetectAsync();
+            _agentContext = await _activityDetector.DetectContextAsync();
+            _activity = _agentContext.Activity;
             var notification = _notificationService.Observe(_activity, Settings);
             RaiseAllDisplayProperties();
             var primaryWindow = DisplayWindows().FirstOrDefault();
             var quotaText = primaryWindow is null
                 ? (_quota.Credits?.Unlimited == true ? "额度无限" : "额度不可用")
                 : $"{primaryWindow.Label} 剩余 {primaryWindow.RemainingPercent:0}%";
-            _trayService.UpdateText($"Codex Bar - {StatusText} - {quotaText}");
+            _trayService.UpdateText($"Codex Bar - {StatusSummaryText} - {quotaText}");
             if (notification is not null)
             {
                 _trayService.ShowNotification(notification);
@@ -324,6 +365,14 @@ public sealed class MainViewModel : ObservableObject
             nameof(StatusText),
             nameof(StatusSummaryText),
             nameof(StatusDurationText),
+            nameof(StatusDurationShortText),
+            nameof(ProjectNameText),
+            nameof(ProjectDisplayText),
+            nameof(CurrentActionText),
+            nameof(CurrentCommandText),
+            nameof(WorkingDirectoryText),
+            nameof(CurrentSessionText),
+            nameof(ActivityStateText),
             nameof(DetailStatusText),
             nameof(StatusBrush),
             nameof(RedLightBrush),
@@ -393,7 +442,7 @@ public sealed class MainViewModel : ObservableObject
     {
         get
         {
-            var duration = DateTimeOffset.Now - _activity.EffectiveStateEnteredAt;
+            var duration = DateTimeOffset.Now - _agentContext.StartedAt;
             return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
         }
     }
@@ -417,6 +466,26 @@ public sealed class MainViewModel : ObservableObject
 
         return $"{(int)duration.TotalHours} 小时 {duration.Minutes} 分 {duration.Seconds} 秒";
     }
+
+    private static string FormatSessionId(string? sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return "未识别";
+        }
+
+        var trimmed = sessionId.Trim();
+        return trimmed.Length <= 12 ? trimmed : trimmed[..8] + "…";
+    }
+
+    private static string FormatActivityState(CodexActivityStatus status) => status switch
+    {
+        CodexActivityStatus.RunningCommand => "Running Command",
+        CodexActivityStatus.RunningTests => "Running Tests",
+        CodexActivityStatus.WaitingApproval => "Waiting Approval",
+        CodexActivityStatus.WaitingUser => "Waiting User",
+        _ => status.ToString()
+    };
 
     private static string FormatDataSource(QuotaDataSource source) => source switch
     {

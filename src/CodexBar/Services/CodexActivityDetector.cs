@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 using CodexBar.Models;
 using Microsoft.Extensions.Logging;
@@ -55,37 +56,57 @@ public sealed class CodexActivityDetector
 
     private readonly CodexSessionLogReader _logReader;
     private readonly CodexActivityReducer _reducer;
+    private readonly ActionClassifier _actionClassifier;
+    private readonly IProjectResolver _projectResolver;
     private readonly ILogger<CodexActivityDetector> _logger;
     private readonly Func<DateTimeOffset> _now;
 
     public CodexActivityDetector(
         CodexSessionLogReader logReader,
         CodexActivityReducer reducer,
+        ActionClassifier actionClassifier,
+        IProjectResolver projectResolver,
         ILogger<CodexActivityDetector> logger,
         Func<DateTimeOffset>? now = null)
     {
         _logReader = logReader;
         _reducer = reducer;
+        _actionClassifier = actionClassifier;
+        _projectResolver = projectResolver;
         _logger = logger;
         _now = now ?? (() => DateTimeOffset.Now);
     }
 
     public async Task<CodexActivitySnapshot> DetectAsync(CancellationToken cancellationToken = default)
+        => (await DetectContextAsync(cancellationToken).ConfigureAwait(false)).Activity;
+
+    public async Task<CurrentAgentContext> DetectContextAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            var entries = await _logReader.ReadRecentLogEntriesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-            return DetectFromEntries(entries);
+            var entries = await _logReader
+                .ReadRecentLogEntriesAsync(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            return await DetectContextFromEntriesAsync(entries, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "检测 Codex 活动状态失败。");
             var now = _now();
-            return new CodexActivitySnapshot(
+            var activity = new CodexActivitySnapshot(
                 CodexActivityStatus.Error,
                 now,
                 CodexDiagnostics.DescribeSessionLogFailure(ex.Message),
                 StateEnteredAt: now);
+            return new CurrentAgentContext(
+                null,
+                null,
+                null,
+                activity,
+                CurrentAgentAction.Error,
+                null,
+                now,
+                now);
         }
     }
 
@@ -93,9 +114,40 @@ public sealed class CodexActivityDetector
         => DetectFromEntries(newestFirstLines.Select(line => new CodexSessionLogEntry(line)));
 
     public CodexActivitySnapshot DetectFromEntries(IEnumerable<CodexSessionLogEntry> newestFirstEntries)
+        => DetectCore(newestFirstEntries).Context.Activity;
+
+    public async Task<CurrentAgentContext> DetectContextFromEntriesAsync(
+        IEnumerable<CodexSessionLogEntry> newestFirstEntries,
+        CancellationToken cancellationToken = default)
+    {
+        var detection = DetectCore(newestFirstEntries);
+        if (detection.Reduction is null || string.IsNullOrWhiteSpace(detection.Context.WorkingDirectory))
+        {
+            return detection.Context;
+        }
+
+        try
+        {
+            var project = await _projectResolver
+                .ResolveAsync(detection.Context.WorkingDirectory, cancellationToken)
+                .ConfigureAwait(false);
+            return detection.Context with
+            {
+                ProjectName = project.ProjectName,
+                WorkingDirectory = project.WorkingDirectory ?? detection.Context.WorkingDirectory
+            };
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogDebug(ex, "解析 Codex 项目目录失败：{WorkingDirectory}", detection.Context.WorkingDirectory);
+            return detection.Context;
+        }
+    }
+
+    private DetectionResult DetectCore(IEnumerable<CodexSessionLogEntry> newestFirstEntries)
     {
         var now = _now();
-        var events = new List<CodexActivityEvent>();
+        var sessions = new Dictionary<string, SessionAccumulator>(StringComparer.OrdinalIgnoreCase);
         var sawUnclassifiableWithoutTime = false;
 
         foreach (var entry in newestFirstEntries)
@@ -105,62 +157,87 @@ public sealed class CodexActivityDetector
                 continue;
             }
 
-            if (!TryParseActivityEvent(entry, out var activityEvent))
+            try
+            {
+                using var document = JsonDocument.Parse(entry.Line);
+                var root = document.RootElement;
+                var metadata = ReadSessionMetadata(root);
+                var sessionKey = entry.SourceFile ?? "__default";
+                if (!sessions.TryGetValue(sessionKey, out var session))
+                {
+                    session = new SessionAccumulator(entry.SourceFile);
+                    sessions.Add(sessionKey, session);
+                }
+
+                session.MergeMetadata(metadata);
+                var timestamp = ReadTimestamp(root, entry.FileLastWriteTimeUtc);
+                if (timestamp is null)
+                {
+                    if (Classify(root) is not null)
+                    {
+                        sawUnclassifiableWithoutTime = true;
+                    }
+
+                    continue;
+                }
+
+                var classification = Classify(root);
+                if (classification is null)
+                {
+                    continue;
+                }
+
+                var semanticValues = EnumerateSemanticValues(root).ToArray();
+                var rawCommand = EnumerateCommandValues(root).FirstOrDefault();
+                var action = _actionClassifier.Classify(classification.Value.Status, rawCommand, semanticValues);
+                session.Events.Add(new CodexActivityEvent(
+                    classification.Value.Status,
+                    timestamp.Value,
+                    entry.SourceFile,
+                    classification.Value.Detail,
+                    classification.Value.IsExplicitRecovery,
+                    classification.Value.StartsTask,
+                    action.Action,
+                    action.CommandSummary));
+            }
+            catch (JsonException)
             {
                 sawUnclassifiableWithoutTime = true;
-                continue;
-            }
-
-            if (activityEvent is { } value)
-            {
-                events.Add(value);
             }
         }
 
-        var snapshot = _reducer.Reduce(events, now);
-        if (snapshot is not null)
+        var reductions = sessions.Values
+            .Select(session => session.Reduce(_reducer, now))
+            .Where(result => result is not null)
+            .Cast<CodexActivityReduction>()
+            .OrderByDescending(result => result.Activity.LastEventAt)
+            .ThenByDescending(result => CodexActivityReducer.Priority(result.Activity.Status))
+            .ToArray();
+
+        if (reductions.FirstOrDefault() is { } latest)
         {
-            return snapshot;
+            return new DetectionResult(CreateContext(latest), latest);
         }
 
-        return sawUnclassifiableWithoutTime
+        var activity = sawUnclassifiableWithoutTime
             ? new CodexActivitySnapshot(CodexActivityStatus.Unknown, now, "无法判断最近 Codex 活动时间。", StateEnteredAt: now)
             : new CodexActivitySnapshot(CodexActivityStatus.Idle, now, "未检测到活跃的 Codex 任务。", StateEnteredAt: now);
+        return new DetectionResult(CurrentAgentContext.Empty(activity), null);
     }
 
-    private static bool TryParseActivityEvent(CodexSessionLogEntry entry, out CodexActivityEvent? activityEvent)
+    private static CurrentAgentContext CreateContext(CodexActivityReduction reduction)
     {
-        activityEvent = null;
-
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(entry.Line);
-            var root = document.RootElement;
-            var timestamp = ReadTimestamp(root, entry.FileLastWriteTimeUtc);
-            if (timestamp is null)
-            {
-                return false;
-            }
-
-            var classification = Classify(root);
-            if (classification is null)
-            {
-                return true;
-            }
-
-            activityEvent = new CodexActivityEvent(
-                classification.Value.Status,
-                timestamp.Value,
-                entry.SourceFile,
-                classification.Value.Detail,
-                classification.Value.IsExplicitRecovery,
-                classification.Value.StartsTask);
-            return true;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
+        var activity = reduction.Activity;
+        var effective = reduction.EffectiveEvent;
+        return new CurrentAgentContext(
+            effective.SessionId,
+            null,
+            effective.WorkingDirectory,
+            activity,
+            effective.CurrentAction,
+            effective.CurrentCommand,
+            activity.TaskStartedAt ?? activity.EffectiveStateEnteredAt,
+            activity.LastEventAt);
     }
 
     private static ActivityClassification? Classify(JsonElement root)
@@ -195,7 +272,7 @@ public sealed class CodexActivityDetector
         }
 
         var commandValues = EnumerateCommandValues(root).ToArray();
-        if (commandValues.Any(IsTestCommand))
+        if (commandValues.Any(ActionClassifier.IsTestCommand))
         {
             return new ActivityClassification(CodexActivityStatus.RunningTests);
         }
@@ -219,6 +296,43 @@ public sealed class CodexActivityDetector
         {
             var startsTask = values.Any(value => value.Equals("task_started", StringComparison.OrdinalIgnoreCase));
             return new ActivityClassification(CodexActivityStatus.Thinking, IsExplicitRecovery: startsTask, StartsTask: startsTask);
+        }
+
+        return null;
+    }
+
+    private static SessionMetadata ReadSessionMetadata(JsonElement root)
+    {
+        var rootType = ReadString(root, "type");
+        var payload = root.TryGetProperty("payload", out var value) && value.ValueKind == JsonValueKind.Object
+            ? value
+            : default;
+        var isSessionMetadata = rootType?.Equals("session_meta", StringComparison.OrdinalIgnoreCase) == true;
+        var sessionId = ReadString(root, "session_id", "sessionId")
+            ?? ReadString(payload, "session_id", "sessionId")
+            ?? (isSessionMetadata ? ReadString(payload, "id") : null);
+        var workingDirectory = ReadString(root, "cwd", "working_directory", "workingDirectory")
+            ?? ReadString(payload, "cwd", "working_directory", "workingDirectory");
+        return new SessionMetadata(sessionId, workingDirectory);
+    }
+
+    private static string? ReadString(JsonElement element, params string[] names)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        foreach (var name in names)
+        {
+            if (element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
+            {
+                var text = value.GetString();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    return text;
+                }
+            }
         }
 
         return null;
@@ -263,22 +377,6 @@ public sealed class CodexActivityDetector
            value.Contains("enotfound", StringComparison.OrdinalIgnoreCase) ||
            value.Contains("etimedout", StringComparison.OrdinalIgnoreCase) ||
            value.Contains("tls", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsTestCommand(string command)
-    {
-        var normalized = command.Trim().ToLowerInvariant();
-        return normalized.Contains("dotnet test", StringComparison.Ordinal) ||
-               normalized.Contains("pytest", StringComparison.Ordinal) ||
-               normalized.Contains("python -m pytest", StringComparison.Ordinal) ||
-               normalized.Contains("npm test", StringComparison.Ordinal) ||
-               normalized.Contains("npm run test", StringComparison.Ordinal) ||
-               normalized.Contains("pnpm test", StringComparison.Ordinal) ||
-               normalized.Contains("yarn test", StringComparison.Ordinal) ||
-               normalized.Contains("cargo test", StringComparison.Ordinal) ||
-               normalized.Contains("go test", StringComparison.Ordinal) ||
-               normalized.Contains("mvn test", StringComparison.Ordinal) ||
-               normalized.Contains("gradle test", StringComparison.Ordinal);
-    }
 
     private static IEnumerable<string> EnumerateSemanticValues(JsonElement element)
     {
@@ -384,9 +482,46 @@ public sealed class CodexActivityDetector
         return DateTimeOffset.TryParse(text, out var timestamp) ? timestamp : null;
     }
 
+    private sealed class SessionAccumulator
+    {
+        public SessionAccumulator(string? sourceFile)
+        {
+            SourceFile = sourceFile;
+        }
+
+        public string? SourceFile { get; }
+        public string? SessionId { get; private set; }
+        public string? WorkingDirectory { get; private set; }
+        public List<CodexActivityEvent> Events { get; } = [];
+
+        public void MergeMetadata(SessionMetadata metadata)
+        {
+            SessionId ??= metadata.SessionId;
+            WorkingDirectory ??= metadata.WorkingDirectory;
+        }
+
+        public CodexActivityReduction? Reduce(CodexActivityReducer reducer, DateTimeOffset now)
+        {
+            var sessionId = SessionId ?? SessionIdFromFile(SourceFile);
+            return reducer.ReduceWithContext(
+                Events.Select(activityEvent => activityEvent with
+                {
+                    SessionId = sessionId,
+                    WorkingDirectory = WorkingDirectory
+                }),
+                now);
+        }
+
+        private static string? SessionIdFromFile(string? sourceFile)
+            => string.IsNullOrWhiteSpace(sourceFile) ? null : Path.GetFileNameWithoutExtension(sourceFile);
+    }
+
     private readonly record struct ActivityClassification(
         CodexActivityStatus Status,
         string? Detail = null,
         bool IsExplicitRecovery = false,
         bool StartsTask = false);
+
+    private readonly record struct SessionMetadata(string? SessionId, string? WorkingDirectory);
+    private sealed record DetectionResult(CurrentAgentContext Context, CodexActivityReduction? Reduction);
 }

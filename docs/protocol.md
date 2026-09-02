@@ -83,4 +83,8 @@ Codex Bar 扫描：
 %USERPROFILE%\.codex\sessions\**\*.jsonl
 ```
 
+活动上下文还会读取 `session_meta.payload.id` 和 `session_meta.payload.cwd`。状态事件始终按 session
+文件隔离后再归并；命令只从结构化的 `command`、`cmd` 或 `arguments` 字段分类。UI 不读取或展示
+聊天正文、Prompt 或代码内容，未知命令的参数也不会进入展示摘要。
+
 最多读取最近修改的 120 个文件，每个文件最多读取末尾 4 MB。它解析 `event_msg` 记录，其中 `payload.type == "token_count"` 且 `payload.rate_limits.limit_id == "codex"`。
