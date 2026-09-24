@@ -19,6 +19,7 @@ public partial class MainWindow : Window
         _viewModel = viewModel;
         DataContext = viewModel;
         viewModel.AttachWindow(this);
+        SizeChanged += (_, _) => _viewModel.OnMainWindowSizeChanged();
     }
 
     private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

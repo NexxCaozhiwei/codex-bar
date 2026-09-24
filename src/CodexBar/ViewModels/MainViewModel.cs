@@ -29,6 +29,7 @@ public sealed class MainViewModel : ObservableObject
     private CurrentAgentContext _agentContext;
     private QuotaDisplayMode _quotaDisplayMode = QuotaDisplayMode.Remaining;
     private bool _isRefreshing;
+    private bool _windowPlacementApplied;
 
     public MainViewModel(
         QuotaService quotaService,
@@ -59,6 +60,11 @@ public sealed class MainViewModel : ObservableObject
             RaisePropertyChanged(nameof(StatusDurationText));
             RaisePropertyChanged(nameof(StatusDurationShortText));
             RaisePropertyChanged(nameof(StatusSummaryText));
+            RaisePropertyChanged(nameof(FiveHourText));
+            RaisePropertyChanged(nameof(WeeklyText));
+            RaisePropertyChanged(nameof(FiveHourDetails));
+            RaisePropertyChanged(nameof(WeeklyDetails));
+            RaisePropertyChanged(nameof(QuotaRows));
         };
         _durationTimer.Start();
     }
@@ -140,9 +146,9 @@ public sealed class MainViewModel : ObservableObject
 
     public double WeeklyRemaining => _quota.Weekly?.RemainingPercent ?? 0;
 
-    public string FiveHourText => QuotaDisplayFormatter.FormatSummary(_quota.FiveHour, _quotaDisplayMode, DateTimeOffset.Now);
+    public string FiveHourText => FormatQuotaSummary(_quota.FiveHour);
 
-    public string WeeklyText => QuotaDisplayFormatter.FormatSummary(_quota.Weekly, _quotaDisplayMode, DateTimeOffset.Now);
+    public string WeeklyText => FormatQuotaSummary(_quota.Weekly);
 
     public string FiveHourDetails => FormatQuotaDetails(_quota.FiveHour);
 
@@ -156,8 +162,11 @@ public sealed class MainViewModel : ObservableObject
                 .Select(window => new QuotaDisplayRow(
                     window.Label,
                     window.RemainingPercent,
-                    QuotaDisplayFormatter.FormatSummary(window, _quotaDisplayMode, DateTimeOffset.Now),
-                    FormatQuotaDetails(window)))
+                    IsQuotaWindowStale(window)
+                        ? "已过期"
+                        : QuotaDisplayFormatter.FormatSummary(window, _quotaDisplayMode, DateTimeOffset.Now),
+                    FormatQuotaDetails(window),
+                    IsQuotaWindowStale(window)))
                 .ToArray();
 
             if (rows.Length > 0)
@@ -166,7 +175,7 @@ public sealed class MainViewModel : ObservableObject
             }
 
             var summary = _quota.Credits?.Unlimited == true ? "无限" : "暂无窗口";
-            return [new QuotaDisplayRow("额度", _quota.Credits?.Unlimited == true ? 100 : 0, summary, summary)];
+            return [new QuotaDisplayRow("额度", _quota.Credits?.Unlimited == true ? 100 : 0, summary, summary, false)];
         }
     }
 
@@ -231,6 +240,15 @@ public sealed class MainViewModel : ObservableObject
         if (_mainWindow is not null)
         {
             _dockingService.Apply(_mainWindow, Settings);
+            _windowPlacementApplied = true;
+        }
+    }
+
+    public void OnMainWindowSizeChanged()
+    {
+        if (_windowPlacementApplied && Settings.AutoDockToTaskbar && _mainWindow is not null)
+        {
+            _dockingService.DockNearTaskbar(_mainWindow);
         }
     }
 
@@ -302,7 +320,9 @@ public sealed class MainViewModel : ObservableObject
         var primaryWindow = DisplayWindows().FirstOrDefault();
         var quotaText = primaryWindow is null
             ? (_quota.Credits?.Unlimited == true ? "额度无限" : "额度不可用")
-            : $"{primaryWindow.Label} 剩余 {primaryWindow.RemainingPercent:0}%";
+            : IsQuotaWindowStale(primaryWindow)
+                ? $"{primaryWindow.Label} 已过期"
+                : $"{primaryWindow.Label} 剩余 {primaryWindow.RemainingPercent:0}%";
         _trayService.UpdateText($"Codex Bar - {StatusSummaryText} - {quotaText}");
     }
 
@@ -457,8 +477,21 @@ public sealed class MainViewModel : ObservableObject
         }
 
         var reset = window.ResetsAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "未知";
-        return $"{window.Label}：已用 {window.UsedPercent:0.##}%，剩余 {window.RemainingPercent:0.##}%，重置时间 {reset}";
+        var stale = IsQuotaWindowStale(window)
+            ? "已过期，以下为上次读取值，等待刷新确认；"
+            : "";
+        return $"{window.Label}：{stale}已用 {window.UsedPercent:0.##}%，剩余 {window.RemainingPercent:0.##}%，重置时间 {reset}";
     }
+
+    private string FormatQuotaSummary(QuotaWindow? window)
+        => window is null
+            ? QuotaDisplayFormatter.FormatSummary(null, _quotaDisplayMode, DateTimeOffset.Now)
+            : IsQuotaWindowStale(window)
+                ? "已过期"
+                : QuotaDisplayFormatter.FormatSummary(window, _quotaDisplayMode, DateTimeOffset.Now);
+
+    private static bool IsQuotaWindowStale(QuotaWindow window)
+        => window.IsStale || window.ResetsAt is { } resetsAt && resetsAt <= DateTimeOffset.Now;
 
     private IReadOnlyList<QuotaWindow> DisplayWindows()
     {
@@ -552,4 +585,5 @@ public sealed record QuotaDisplayRow(
     string Label,
     double RemainingPercent,
     string Summary,
-    string Details);
+    string Details,
+    bool IsStale);

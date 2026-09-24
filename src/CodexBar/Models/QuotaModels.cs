@@ -14,7 +14,10 @@ public sealed record QuotaWindow(
     double RemainingPercent,
     DateTimeOffset? ResetsAt,
     string? PlanType,
-    string? LimitId);
+    string? LimitId)
+{
+    public bool IsStale { get; init; }
+}
 
 public sealed record QuotaCredits(
     bool HasCredits,

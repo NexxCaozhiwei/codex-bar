@@ -75,7 +75,18 @@
                                 <ColumnDefinition Width="62" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{Binding Label}" Foreground="{StaticResource MutedBrush}" FontSize="10" VerticalAlignment="Center" />
-                            <ProgressBar Grid.Column="1" Style="{StaticResource QuotaProgressBarStyle}" Minimum="0" Maximum="100" Value="{Binding RemainingPercent, Mode=OneWay}" Foreground="#3DA5FF" Background="{StaticResource TrackBrush}" />
+                            <ProgressBar Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding RemainingPercent, Mode=OneWay}" Background="{StaticResource TrackBrush}">
+                                <ProgressBar.Style>
+                                    <Style TargetType="ProgressBar" BasedOn="{StaticResource QuotaProgressBarStyle}">
+                                        <Setter Property="Foreground" Value="#3DA5FF" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsStale}" Value="True">
+                                                <Setter Property="Foreground" Value="#69717D" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ProgressBar.Style>
+                            </ProgressBar>
                             <TextBlock Grid.Column="2" Text="{Binding Summary}" Foreground="{StaticResource TextBrush}" FontSize="10" TextAlignment="Right" VerticalAlignment="Center" />
                         </Grid>
                     </DataTemplate>

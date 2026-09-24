@@ -29,9 +29,7 @@ public static class QuotaSnapshotNormalizer
 
         return window with
         {
-            UsedPercent = 0,
-            RemainingPercent = 100,
-            ResetsAt = null
+            IsStale = true
         };
     }
 }
