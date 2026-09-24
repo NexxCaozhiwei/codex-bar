@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Forms;
 using CodexBar.Models;
 
@@ -25,7 +26,7 @@ public sealed class WindowDockingService
 
     public void DockNearTaskbar(Window window)
     {
-        var screen = Screen.FromPoint(System.Windows.Forms.Cursor.Position);
+        var screen = Screen.FromHandle(new WindowInteropHelper(window).Handle);
         var area = screen.WorkingArea;
         var scale = GetScale(window);
 

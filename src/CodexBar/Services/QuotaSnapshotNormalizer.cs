@@ -4,6 +4,16 @@ namespace CodexBar.Services;
 
 public static class QuotaSnapshotNormalizer
 {
+    public static QuotaSnapshot MergeFallbackWithAccountData(QuotaSnapshot fallback, QuotaSnapshot appServer)
+        => fallback with
+        {
+            Credits = fallback.Credits ?? appServer.Credits,
+            AvailableResetCredits = fallback.AvailableResetCredits ?? appServer.AvailableResetCredits,
+            PlanType = fallback.PlanType ?? appServer.PlanType,
+            LimitId = fallback.LimitId ?? appServer.LimitId,
+            RateLimitReachedType = fallback.RateLimitReachedType ?? appServer.RateLimitReachedType
+        };
+
     public static QuotaSnapshot NormalizeExpiredWindows(QuotaSnapshot snapshot, DateTimeOffset now)
     {
         var windows = snapshot.Windows.Count > 0

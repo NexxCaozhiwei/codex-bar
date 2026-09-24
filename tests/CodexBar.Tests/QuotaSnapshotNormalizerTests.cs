@@ -64,6 +64,38 @@ public sealed class QuotaSnapshotNormalizerTests
         Assert.True(normalized.Windows[0].IsStale);
     }
 
+    [Fact]
+    public void FallbackWindowsRetainAccountDetailsFromAppServer()
+    {
+        var fallbackWindow = Window(usedPercent: 40, resetsAt: Now.AddHours(1));
+        var fallback = new QuotaSnapshot(null, null, QuotaDataSource.JsonlFallback, Now)
+        {
+            Windows = [fallbackWindow]
+        };
+        var appServer = new QuotaSnapshot(null, null, QuotaDataSource.AppServer, Now)
+        {
+            Credits = new QuotaCredits(HasCredits: true, Unlimited: false, Balance: "42"),
+            AvailableResetCredits = 2,
+            PlanType = "plus",
+            LimitId = "codex",
+            RateLimitReachedType = "weekly"
+        };
+
+        Assert.True(appServer.HasQuotaData);
+        Assert.False(appServer.HasQuotaWindows);
+        Assert.True(fallback.HasQuotaWindows);
+
+        var combined = QuotaSnapshotNormalizer.MergeFallbackWithAccountData(fallback, appServer);
+
+        Assert.Equal(QuotaDataSource.JsonlFallback, combined.Source);
+        Assert.Equal([fallbackWindow], combined.Windows);
+        Assert.Equal(appServer.Credits, combined.Credits);
+        Assert.Equal(2, combined.AvailableResetCredits);
+        Assert.Equal("plus", combined.PlanType);
+        Assert.Equal("codex", combined.LimitId);
+        Assert.Equal("weekly", combined.RateLimitReachedType);
+    }
+
     private static QuotaWindow Window(double usedPercent, DateTimeOffset resetsAt)
         => new("5h", 300, usedPercent, 100 - usedPercent, resetsAt, "plus", "codex");
 }

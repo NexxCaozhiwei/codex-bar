@@ -29,23 +29,43 @@ public sealed class QuotaService
         var now = DateTimeOffset.Now;
         LastLocation = await _locator.LocateAsync(settings.CodexPath, cancellationToken).ConfigureAwait(false);
         string? appServerError = null;
+        QuotaSnapshot? appServerAccountData = null;
         if (LastLocation.Found)
         {
             var appServer = await _appServerClient
                 .ReadQuotaAsync(LastLocation.Path!, TimeSpan.FromSeconds(3), cancellationToken)
                 .ConfigureAwait(false);
 
-            if (appServer.Source == QuotaDataSource.AppServer && appServer.HasQuotaData)
+            if (appServer.Source == QuotaDataSource.AppServer && appServer.HasQuotaWindows)
             {
                 return QuotaSnapshotNormalizer.NormalizeExpiredWindows(appServer, now);
             }
 
             appServerError = appServer.Error;
-            _logger.LogInformation("app-server 返回后回退到 session jsonl：{Error}", appServer.Error);
+            if (appServer.Source == QuotaDataSource.AppServer && appServer.HasQuotaData)
+            {
+                appServerAccountData = appServer;
+                appServerError ??= "app-server 未返回额度窗口。";
+            }
+
+            _logger.LogInformation("app-server 返回后回退到 session jsonl：{Error}", appServerError);
         }
 
         var fallback = await _sessionLogReader.ReadLatestQuotaAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-        if (fallback.Source == QuotaDataSource.JsonlFallback)
+        if (fallback.Source == QuotaDataSource.JsonlFallback && fallback.HasQuotaWindows)
+        {
+            var combined = appServerAccountData is null
+                ? fallback
+                : QuotaSnapshotNormalizer.MergeFallbackWithAccountData(fallback, appServerAccountData);
+            return QuotaSnapshotNormalizer.NormalizeExpiredWindows(combined, now);
+        }
+
+        if (appServerAccountData is not null)
+        {
+            return QuotaSnapshotNormalizer.NormalizeExpiredWindows(appServerAccountData, now);
+        }
+
+        if (fallback.Source == QuotaDataSource.JsonlFallback && fallback.HasQuotaData)
         {
             return QuotaSnapshotNormalizer.NormalizeExpiredWindows(fallback, now);
         }

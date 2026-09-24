@@ -45,6 +45,8 @@ public sealed record QuotaSnapshot(
 
     public bool HasQuotaData => Windows.Count > 0 || Credits is not null || AvailableResetCredits is not null;
 
+    public bool HasQuotaWindows => Windows.Count > 0 || FiveHour is not null || Weekly is not null;
+
     public static QuotaSnapshot Empty(string? error = null)
         => new(null, null, QuotaDataSource.None, DateTimeOffset.Now, error);
 }
