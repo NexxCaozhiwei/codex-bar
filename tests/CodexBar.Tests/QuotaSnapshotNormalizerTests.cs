@@ -9,7 +9,7 @@ public sealed class QuotaSnapshotNormalizerTests
     private static readonly DateTimeOffset Now = new(2026, 6, 14, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void ExpiredWindowIsTreatedAsReset()
+    public void ExpiredWindowPreservesLastReadingAndIsMarkedStale()
     {
         var snapshot = new QuotaSnapshot(
             Window(usedPercent: 99.6, resetsAt: Now.AddMinutes(-5)),
@@ -19,11 +19,13 @@ public sealed class QuotaSnapshotNormalizerTests
 
         var normalized = QuotaSnapshotNormalizer.NormalizeExpiredWindows(snapshot, Now);
 
-        Assert.Equal(0, normalized.FiveHour?.UsedPercent);
-        Assert.Equal(100, normalized.FiveHour?.RemainingPercent);
-        Assert.Null(normalized.FiveHour?.ResetsAt);
+        Assert.Equal(99.6, normalized.FiveHour!.UsedPercent, 2);
+        Assert.Equal(0.4, normalized.FiveHour.RemainingPercent, 2);
+        Assert.Equal(Now.AddMinutes(-5), normalized.FiveHour.ResetsAt);
+        Assert.True(normalized.FiveHour.IsStale);
         Assert.Equal(30, normalized.Weekly?.RemainingPercent);
         Assert.NotNull(normalized.Weekly?.ResetsAt);
+        Assert.False(normalized.Weekly?.IsStale);
     }
 
     [Fact]
@@ -40,6 +42,7 @@ public sealed class QuotaSnapshotNormalizerTests
         Assert.Equal(7, normalized.FiveHour?.UsedPercent);
         Assert.Equal(93, normalized.FiveHour?.RemainingPercent);
         Assert.Equal(Now.AddHours(4), normalized.FiveHour?.ResetsAt);
+        Assert.False(normalized.FiveHour?.IsStale);
     }
 
     [Fact]
@@ -54,9 +57,11 @@ public sealed class QuotaSnapshotNormalizerTests
         var normalized = QuotaSnapshotNormalizer.NormalizeExpiredWindows(snapshot, Now);
 
         Assert.Null(normalized.FiveHour);
-        Assert.Equal(100, normalized.Weekly?.RemainingPercent);
+        Assert.Equal(55, normalized.Weekly?.RemainingPercent);
+        Assert.True(normalized.Weekly?.IsStale);
         Assert.Single(normalized.Windows);
-        Assert.Equal(100, normalized.Windows[0].RemainingPercent);
+        Assert.Equal(55, normalized.Windows[0].RemainingPercent);
+        Assert.True(normalized.Windows[0].IsStale);
     }
 
     private static QuotaWindow Window(double usedPercent, DateTimeOffset resetsAt)
