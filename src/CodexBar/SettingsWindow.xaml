@@ -111,7 +111,7 @@
                             </ComboBox>
                         </Grid>
                         <TextBlock Text="{Binding UpdateStatusText}" Foreground="#D5DCE5" TextWrapping="Wrap" Margin="0,0,0,8" />
-                        <ProgressBar Minimum="0" Maximum="100" Height="6" Value="{Binding UpdateProgress}" Margin="0,0,0,8" />
+                        <ProgressBar Minimum="0" Maximum="100" Height="6" Value="{Binding UpdateProgress, Mode=OneWay}" Margin="0,0,0,8" />
                         <WrapPanel>
                             <Button Content="检查更新" Command="{Binding CheckUpdatesCommand}" Margin="0,0,6,6" Padding="10,4" />
                             <Button Content="下载更新" Command="{Binding DownloadUpdateCommand}" Margin="0,0,6,6" Padding="10,4" />
