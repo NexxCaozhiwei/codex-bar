@@ -10,13 +10,11 @@ public sealed class SettingsService
     private readonly ILogger<SettingsService> _logger;
     private readonly JsonSerializerOptions _jsonOptions = CreateJsonOptions();
     private readonly string _appDataRoot;
-    private readonly string _localAppDataRoot;
 
-    public SettingsService(ILogger<SettingsService> logger, string? appDataRoot = null, string? localAppDataRoot = null)
+    public SettingsService(ILogger<SettingsService> logger, string? appDataRoot = null)
     {
         _logger = logger;
         _appDataRoot = appDataRoot ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        _localAppDataRoot = localAppDataRoot ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
     }
 
     public string SettingsPath => Path.Combine(
@@ -24,20 +22,9 @@ public sealed class SettingsService
         "CodexBar",
         "settings.json");
 
-    public string StatePath => Path.Combine(
-        _appDataRoot,
-        "CodexBar",
-        "state.json");
-
-    public string LogDirectory => Path.Combine(
-        _localAppDataRoot,
-        "CodexBar",
-        "logs");
-
     public AppSettings Load()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-        Directory.CreateDirectory(LogDirectory);
 
         if (!File.Exists(SettingsPath))
         {

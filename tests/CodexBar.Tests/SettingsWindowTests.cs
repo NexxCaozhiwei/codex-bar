@@ -23,7 +23,7 @@ public sealed class SettingsWindowTests
                 Velopack.VelopackApp.Build().SetArgs([]).SetAutoApplyOnStartup(false).Run();
                 var services = new ServiceCollection();
                 services.AddLogging();
-                services.AddSingleton(new SettingsService(NullLogger<SettingsService>.Instance, temp, temp));
+                services.AddSingleton(new SettingsService(NullLogger<SettingsService>.Instance, temp));
                 services.AddSingleton<JsonQuotaParser>();
                 services.AddSingleton<CodexLocator>();
                 services.AddSingleton<CodexAppServerClient>();
@@ -48,7 +48,6 @@ public sealed class SettingsWindowTests
 
                 Assert.True(window.IsVisible);
                 Assert.Equal(3, ((ComboBox)window.FindName("UpdateModeBox")).Items.Count);
-                Assert.Equal(2, ((ComboBox)window.FindName("LanguageBox")).Items.Count);
             }
             catch (Exception ex)
             {

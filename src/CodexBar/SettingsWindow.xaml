@@ -120,18 +120,6 @@
                         </WrapPanel>
                     </StackPanel>
                 </GroupBox>
-
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="150" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="界面语言" Foreground="#9DA7B3" VerticalAlignment="Center" />
-                    <ComboBox x:Name="LanguageBox" Grid.Column="1" Height="26">
-                        <ComboBoxItem Content="中文" Tag="zh" />
-                        <ComboBoxItem Content="英文" Tag="en" />
-                    </ComboBox>
-                </Grid>
             </StackPanel>
         </ScrollViewer>
 

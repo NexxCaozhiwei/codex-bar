@@ -23,7 +23,7 @@ jobs:
       - name: Test
         run: dotnet test -c Release --no-build
       - name: Publish
-        run: dotnet publish src/CodexBar/CodexBar.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -o artifacts/publish/win-x64
+        run: dotnet publish src/CodexBar/CodexBar.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -o artifacts/publish/win-x64
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path artifacts/publish/win-x64/* -DestinationPath artifacts/CodexBar-win-x64.zip -Force

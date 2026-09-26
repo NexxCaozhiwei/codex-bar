@@ -79,10 +79,6 @@ public sealed class MainViewModel : ObservableObject
             RaisePropertyChanged(nameof(StatusDurationText));
             RaisePropertyChanged(nameof(StatusDurationShortText));
             RaisePropertyChanged(nameof(StatusSummaryText));
-            RaisePropertyChanged(nameof(FiveHourText));
-            RaisePropertyChanged(nameof(WeeklyText));
-            RaisePropertyChanged(nameof(FiveHourDetails));
-            RaisePropertyChanged(nameof(WeeklyDetails));
             RaisePropertyChanged(nameof(QuotaRows));
         };
         _durationTimer.Start();
@@ -148,8 +144,6 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    public string StatusText => FormatStatus(_activity.Status);
-
     public string StatusSummaryText
     {
         get
@@ -200,18 +194,6 @@ public sealed class MainViewModel : ObservableObject
     public Brush BlueLightBrush => ActivityStatusPalette.BlueLightBrush(_activity.Status);
 
     public Brush RedLightBrush => ActivityStatusPalette.RedLightBrush(_activity.Status);
-
-    public double FiveHourRemaining => _quota.FiveHour?.RemainingPercent ?? 0;
-
-    public double WeeklyRemaining => _quota.Weekly?.RemainingPercent ?? 0;
-
-    public string FiveHourText => FormatQuotaSummary(_quota.FiveHour);
-
-    public string WeeklyText => FormatQuotaSummary(_quota.Weekly);
-
-    public string FiveHourDetails => FormatQuotaDetails(_quota.FiveHour);
-
-    public string WeeklyDetails => FormatQuotaDetails(_quota.Weekly);
 
     public IReadOnlyList<QuotaDisplayRow> QuotaRows
     {
@@ -510,8 +492,6 @@ public sealed class MainViewModel : ObservableObject
         _quotaDisplayMode = _quotaDisplayMode == QuotaDisplayMode.Remaining
             ? QuotaDisplayMode.ResetCountdown
             : QuotaDisplayMode.Remaining;
-        RaisePropertyChanged(nameof(FiveHourText));
-        RaisePropertyChanged(nameof(WeeklyText));
         RaisePropertyChanged(nameof(QuotaRows));
     }
 
@@ -671,7 +651,6 @@ public sealed class MainViewModel : ObservableObject
     {
         foreach (var property in new[]
         {
-            nameof(StatusText),
             nameof(StatusSummaryText),
             nameof(StatusDurationText),
             nameof(StatusDurationShortText),
@@ -687,12 +666,6 @@ public sealed class MainViewModel : ObservableObject
             nameof(RedLightBrush),
             nameof(GreenLightBrush),
             nameof(BlueLightBrush),
-            nameof(FiveHourRemaining),
-            nameof(WeeklyRemaining),
-            nameof(FiveHourText),
-            nameof(WeeklyText),
-            nameof(FiveHourDetails),
-            nameof(WeeklyDetails),
             nameof(QuotaRows),
             nameof(QuotaAccountDetails),
             nameof(LastRefreshText),
@@ -719,13 +692,6 @@ public sealed class MainViewModel : ObservableObject
         return $"{window.Label}：{stale}已用 {window.UsedPercent:0.##}%，剩余 {window.RemainingPercent:0.##}%，重置时间 {reset}";
     }
 
-    private string FormatQuotaSummary(QuotaWindow? window)
-        => window is null
-            ? QuotaDisplayFormatter.FormatSummary(null, _quotaDisplayMode, DateTimeOffset.Now)
-            : IsQuotaWindowStale(window)
-                ? "已过期"
-                : QuotaDisplayFormatter.FormatSummary(window, _quotaDisplayMode, DateTimeOffset.Now);
-
     private static bool IsQuotaWindowStale(QuotaWindow window)
         => window.IsStale || window.ResetsAt is { } resetsAt && resetsAt <= DateTimeOffset.Now;
 
@@ -743,22 +709,6 @@ public sealed class MainViewModel : ObservableObject
             .OrderBy(window => window.WindowDurationMins)
             .ToArray();
     }
-
-    private static string FormatStatus(CodexActivityStatus status) => status switch
-    {
-        CodexActivityStatus.Idle => "空闲",
-        CodexActivityStatus.Thinking => "思考中",
-        CodexActivityStatus.Editing => "编辑中",
-        CodexActivityStatus.RunningCommand => "运行命令",
-        CodexActivityStatus.RunningTests => "运行测试",
-        CodexActivityStatus.Reviewing => "审查中",
-        CodexActivityStatus.WaitingApproval => "等待审批",
-        CodexActivityStatus.WaitingUser => "等待用户",
-        CodexActivityStatus.Completed => "已完成",
-        CodexActivityStatus.Unknown => "未知",
-        CodexActivityStatus.Error => "错误",
-        _ => "未知"
-    };
 
     private TimeSpan StateDuration
     {

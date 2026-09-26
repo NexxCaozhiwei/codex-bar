@@ -102,6 +102,7 @@ dotnet publish src/CodexBar/CodexBar.csproj `
   -r win-x64 `
   --self-contained true `
   -p:PublishSingleFile=true `
+  -p:EnableCompressionInSingleFile=true `
   -p:IncludeNativeLibrariesForSelfExtract=true `
   -p:PublishTrimmed=false `
   -o artifacts/publish/win-x64

@@ -10,7 +10,7 @@ public sealed class SettingsServiceTests
     public void CorruptedSettingsFallsBackToDefaults()
     {
         var temp = Path.Combine(Path.GetTempPath(), "CodexBar.Tests", Guid.NewGuid().ToString("N"));
-        var service = new SettingsService(NullLogger<SettingsService>.Instance, temp, temp);
+        var service = new SettingsService(NullLogger<SettingsService>.Instance, temp);
         Directory.CreateDirectory(Path.GetDirectoryName(service.SettingsPath)!);
         File.WriteAllText(service.SettingsPath, "{ not json");
 
@@ -25,7 +25,7 @@ public sealed class SettingsServiceTests
     public void OlderSettingsKeepNotificationDefaults()
     {
         var temp = Path.Combine(Path.GetTempPath(), "CodexBar.Tests", Guid.NewGuid().ToString("N"));
-        var service = new SettingsService(NullLogger<SettingsService>.Instance, temp, temp);
+        var service = new SettingsService(NullLogger<SettingsService>.Instance, temp);
         Directory.CreateDirectory(Path.GetDirectoryName(service.SettingsPath)!);
         File.WriteAllText(service.SettingsPath, "{\"topMost\":false}");
 
@@ -45,7 +45,7 @@ public sealed class SettingsServiceTests
     public void UpdateSettingsRoundTripAsReadableValues()
     {
         var temp = Path.Combine(Path.GetTempPath(), "CodexBar.Tests", Guid.NewGuid().ToString("N"));
-        var service = new SettingsService(NullLogger<SettingsService>.Instance, temp, temp);
+        var service = new SettingsService(NullLogger<SettingsService>.Instance, temp);
         var settings = new CodexBar.Models.AppSettings
         {
             UpdateMode = CodexBar.Models.UpdateMode.AutoDownload,

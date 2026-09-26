@@ -52,7 +52,7 @@ dotnet test CodexBar.sln -c Release --no-build
 本地发布包：
 
 ```powershell
-dotnet publish src/CodexBar/CodexBar.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -o artifacts/publish/win-x64
+dotnet publish src/CodexBar/CodexBar.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -o artifacts/publish/win-x64
 Compress-Archive -Path artifacts/publish/win-x64/* -DestinationPath artifacts/CodexBar-win-x64.zip -Force
 ```
 
@@ -96,7 +96,7 @@ GitHub Release 由 `.github/workflows/release.yml` 在 tag push 后自动创建�
 - 不要把主界面改成大窗口、营销页或装饰性布局。
 - 修改 `MainWindow.xaml` 后，要确认 `5h` 和 `7d` 两行都完整可见。
 - 主窗口需要先 `Show()` 再应用位置，避免高 DPI 下定位错误。
-- 设置页新增控件时，要确认窗口高度足够，底部按钮和语言设置不可被裁切。
+- 设置页新增控件时，要确认窗口高度足够，底部按钮不可被裁切。
 
 ## 状态判定规则
 
