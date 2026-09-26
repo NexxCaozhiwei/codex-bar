@@ -625,7 +625,7 @@ public sealed class MainViewModel : ObservableObject
     }
 
     private string InitialUpdateStatus() => !_updateService.IsManagedInstall
-        ? "当前为旧版 ZIP 安装；首次使用自动更新前，请先下载支持更新的便携版并手动迁移。"
+        ? "当前安装方式不支持应用内更新；请从 GitHub Release 下载 CodexBar-win-Portable.zip 并手动迁移一次。"
         : _updateService.HasPendingRestart ? "更新已下载；重启应用即可完成更新。" : "尚未检查更新。";
 
     private void RaiseUpdateCommandStates()
