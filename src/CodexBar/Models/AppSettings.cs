@@ -15,6 +15,8 @@ public sealed class AppSettings
     public bool NotifyOnWaitingApproval { get; set; } = true;
     public bool NotifyOnError { get; set; } = true;
     public int NotificationMinimumTaskDurationSeconds { get; set; } = 30;
+    public UpdateMode UpdateMode { get; set; } = UpdateMode.Notify;
+    public DateTimeOffset? LastUpdateCheckUtc { get; set; }
     public double? Left { get; set; }
     public double? Top { get; set; }
 }

@@ -13,6 +13,7 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent();
         _viewModel = viewModel;
+        DataContext = viewModel;
         LoadFromSettings(viewModel.Settings);
     }
 
@@ -32,6 +33,9 @@ public partial class SettingsWindow : Window
         _viewModel.Settings.NotifyOnError = NotifyErrorBox.IsChecked == true;
         _viewModel.Settings.NotificationMinimumTaskDurationSeconds =
             int.TryParse(MinimumDurationBox.Text, out var minimumDuration) ? minimumDuration : 30;
+        _viewModel.Settings.UpdateMode = Enum.TryParse<UpdateMode>(
+            ((ComboBoxItem?)UpdateModeBox.SelectedItem)?.Tag?.ToString(),
+            out var updateMode) ? updateMode : UpdateMode.Notify;
         _viewModel.SaveSettings();
         Close();
     }
@@ -57,6 +61,9 @@ public partial class SettingsWindow : Window
         NotifyWaitingApprovalBox.IsChecked = settings.NotifyOnWaitingApproval;
         NotifyErrorBox.IsChecked = settings.NotifyOnError;
         MinimumDurationBox.Text = settings.NotificationMinimumTaskDurationSeconds.ToString();
+        UpdateModeBox.SelectedItem = UpdateModeBox.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => string.Equals(item.Tag?.ToString(), settings.UpdateMode.ToString(), StringComparison.Ordinal));
     }
 
     private void OnOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

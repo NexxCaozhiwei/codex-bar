@@ -27,7 +27,19 @@ jobs:
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path artifacts/publish/win-x64/* -DestinationPath artifacts/CodexBar-win-x64.zip -Force
+      - name: Install Velopack CLI
+        run: dotnet tool install vpk --tool-path artifacts/tools --version 1.2.158
+      - name: Package self-updating portable release
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $version = $env:RELEASE_TAG -replace '^v', ''
+          artifacts/tools/vpk.exe pack --packId CodexBar --packVersion $version --packDir artifacts/publish/win-x64 --mainExe CodexBar.exe --packTitle "Codex Bar" --runtime win-x64 --noInst --outputDir artifacts/velopack
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/CodexBar-win-x64.zip
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/CodexBar-win-x64.zip
+            artifacts/velopack/*

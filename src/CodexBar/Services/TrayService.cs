@@ -58,6 +58,11 @@ public sealed class TrayService : IDisposable
         _notifyIcon.ShowBalloonTip(5000, notification.Title, notification.Message, icon);
     }
 
+    public void ShowUpdateNotification(string title, string message)
+    {
+        _notifyIcon?.ShowBalloonTip(5000, title, message, ToolTipIcon.Info);
+    }
+
     private static ContextMenuStrip BuildMenu(Window mainWindow, MainViewModel viewModel)
     {
         var menu = new ContextMenuStrip();
@@ -73,6 +78,7 @@ public sealed class TrayService : IDisposable
             }
         });
         menu.Items.Add("刷新", null, async (_, _) => await viewModel.RefreshAsync());
+        menu.Items.Add("检查更新", null, async (_, _) => await viewModel.CheckForUpdatesAsync());
         menu.Items.Add("设置", null, (_, _) => viewModel.ShowSettings());
         menu.Items.Add("锁定位置", null, (_, _) => viewModel.ToggleLockPosition());
         menu.Items.Add("窗口置顶", null, (_, _) => viewModel.ToggleTopMost());

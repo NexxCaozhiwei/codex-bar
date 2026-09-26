@@ -8,7 +8,7 @@ namespace CodexBar.Services;
 public sealed class SettingsService
 {
     private readonly ILogger<SettingsService> _logger;
-    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    private readonly JsonSerializerOptions _jsonOptions = CreateJsonOptions();
     private readonly string _appDataRoot;
     private readonly string _localAppDataRoot;
 
@@ -66,5 +66,12 @@ public sealed class SettingsService
     {
         Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
         File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, _jsonOptions));
+    }
+
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true };
+        options.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        return options;
     }
 }

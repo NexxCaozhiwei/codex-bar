@@ -37,6 +37,28 @@ public sealed class SettingsServiceTests
         Assert.True(settings.NotifyOnWaitingApproval);
         Assert.True(settings.NotifyOnError);
         Assert.Equal(30, settings.NotificationMinimumTaskDurationSeconds);
+        Assert.Equal(CodexBar.Models.UpdateMode.Notify, settings.UpdateMode);
+        Directory.Delete(temp, recursive: true);
+    }
+
+    [Fact]
+    public void UpdateSettingsRoundTripAsReadableValues()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "CodexBar.Tests", Guid.NewGuid().ToString("N"));
+        var service = new SettingsService(NullLogger<SettingsService>.Instance, temp, temp);
+        var settings = new CodexBar.Models.AppSettings
+        {
+            UpdateMode = CodexBar.Models.UpdateMode.AutoDownload,
+            LastUpdateCheckUtc = new DateTimeOffset(2026, 9, 26, 1, 2, 3, TimeSpan.Zero)
+        };
+
+        service.Save(settings);
+        var json = File.ReadAllText(service.SettingsPath);
+        var loaded = service.Load();
+
+        Assert.Contains("\"updateMode\": \"AutoDownload\"", json);
+        Assert.Equal(CodexBar.Models.UpdateMode.AutoDownload, loaded.UpdateMode);
+        Assert.Equal(settings.LastUpdateCheckUtc, loaded.LastUpdateCheckUtc);
         Directory.Delete(temp, recursive: true);
     }
 }

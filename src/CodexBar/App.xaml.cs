@@ -35,6 +35,7 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<ActivityNotificationService>();
                 services.AddSingleton<QuotaService>();
                 services.AddSingleton<SettingsService>();
+                services.AddSingleton<UpdateService>();
                 services.AddSingleton<StartupService>();
                 services.AddSingleton<WindowDockingService>();
                 services.AddSingleton<TrayService>();
@@ -52,6 +53,7 @@ public partial class App : System.Windows.Application
         window.Show();
         viewModel.ApplyWindowPlacement();
         ShowMainWindow(window, viewModel.Settings.TopMost);
+        viewModel.StartUpdateChecks();
         await viewModel.RefreshAsync();
     }
 

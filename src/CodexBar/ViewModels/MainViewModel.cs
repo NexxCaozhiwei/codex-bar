@@ -1,8 +1,11 @@
 using System.Windows;
 using System.Windows.Threading;
+using System.Diagnostics;
 using CodexBar.Models;
 using CodexBar.Services;
 using Brush = System.Windows.Media.Brush;
+using Velopack;
+using WpfApplication = System.Windows.Application;
 
 namespace CodexBar.ViewModels;
 
@@ -17,9 +20,12 @@ public sealed class MainViewModel : ObservableObject
     private readonly StartupService _startupService;
     private readonly WindowDockingService _dockingService;
     private readonly TrayService _trayService;
+    private readonly UpdateService _updateService;
     private readonly DispatcherTimer _quotaTimer = new();
     private readonly DispatcherTimer _activityTimer = new();
     private readonly DispatcherTimer _durationTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DispatcherTimer _updateStartupTimer = new() { Interval = TimeSpan.FromSeconds(30) };
+    private readonly DispatcherTimer _updateDailyTimer = new() { Interval = TimeSpan.FromDays(1) };
     private readonly SemaphoreSlim _manualRefreshGate = new(1, 1);
     private readonly SemaphoreSlim _quotaRefreshGate = new(1, 1);
     private readonly SemaphoreSlim _activityRefreshGate = new(1, 1);
@@ -30,6 +36,10 @@ public sealed class MainViewModel : ObservableObject
     private QuotaDisplayMode _quotaDisplayMode = QuotaDisplayMode.Remaining;
     private bool _isRefreshing;
     private bool _windowPlacementApplied;
+    private bool _isUpdateBusy;
+    private int _updateProgress;
+    private string _updateStatusText = "尚未检查更新。";
+    private UpdateInfo? _availableUpdate;
 
     public MainViewModel(
         QuotaService quotaService,
@@ -38,7 +48,8 @@ public sealed class MainViewModel : ObservableObject
         SettingsService settingsService,
         StartupService startupService,
         WindowDockingService dockingService,
-        TrayService trayService)
+        TrayService trayService,
+        UpdateService updateService)
     {
         _quotaService = quotaService;
         _activityDetector = activityDetector;
@@ -47,12 +58,20 @@ public sealed class MainViewModel : ObservableObject
         _startupService = startupService;
         _dockingService = dockingService;
         _trayService = trayService;
+        _updateService = updateService;
         _agentContext = CurrentAgentContext.Empty(_activity);
         Settings = _settingsService.Load();
         Settings.StartWithWindows = _startupService.IsEnabled();
         RefreshCommand = new RelayCommand(async _ => await RefreshAsync(), _ => !IsRefreshing);
         SettingsCommand = new RelayCommand(() => ShowSettings());
         DetailsCommand = new RelayCommand(() => ShowDetails());
+        CheckUpdatesCommand = new RelayCommand(async _ => await CheckForUpdatesAsync(), _ => !IsUpdateBusy);
+        DownloadUpdateCommand = new RelayCommand(async _ => await DownloadUpdateAsync(), _ => !IsUpdateBusy && HasUpdateAvailable);
+        ApplyUpdateCommand = new RelayCommand(_ => ApplyDownloadedUpdate(), _ => !IsUpdateBusy && HasPendingUpdate);
+        OpenReleasePageCommand = new RelayCommand(OpenLatestReleasePage);
+        _updateStatusText = InitialUpdateStatus();
+        _updateStartupTimer.Tick += OnUpdateStartupTimerTick;
+        _updateDailyTimer.Tick += OnUpdateDailyTimerTick;
 
         ConfigureTimers();
         _durationTimer.Tick += (_, _) =>
@@ -76,6 +95,46 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand SettingsCommand { get; }
 
     public RelayCommand DetailsCommand { get; }
+
+    public RelayCommand CheckUpdatesCommand { get; }
+
+    public RelayCommand DownloadUpdateCommand { get; }
+
+    public RelayCommand ApplyUpdateCommand { get; }
+
+    public RelayCommand OpenReleasePageCommand { get; }
+
+    public string CurrentVersionText => _updateService.CurrentVersion;
+
+    public string UpdateStatusText
+    {
+        get => _updateStatusText;
+        private set => SetProperty(ref _updateStatusText, value);
+    }
+
+    public int UpdateProgress
+    {
+        get => _updateProgress;
+        private set => SetProperty(ref _updateProgress, value);
+    }
+
+    public bool IsUpdateBusy
+    {
+        get => _isUpdateBusy;
+        private set
+        {
+            if (SetProperty(ref _isUpdateBusy, value))
+            {
+                RaiseUpdateCommandStates();
+            }
+        }
+    }
+
+    public bool HasUpdateAvailable => _availableUpdate is not null;
+
+    public bool HasPendingUpdate => _updateService.HasPendingRestart;
+
+    public string AvailableVersionText => _availableUpdate?.TargetFullRelease.Version.ToString() ?? "";
 
     public bool IsRefreshing
     {
@@ -338,6 +397,114 @@ public sealed class MainViewModel : ObservableObject
         settings.ShowDialog();
     }
 
+    public void StartUpdateChecks()
+    {
+        if (Settings.UpdateMode != UpdateMode.Manual && _updateService.IsManagedInstall)
+        {
+            _updateStartupTimer.Start();
+        }
+    }
+
+    public async Task CheckForUpdatesAsync(bool automatic = false)
+    {
+        if (IsUpdateBusy)
+        {
+            return;
+        }
+
+        if (!_updateService.IsManagedInstall)
+        {
+            UpdateStatusText = InitialUpdateStatus();
+            return;
+        }
+
+        if (HasPendingUpdate)
+        {
+            UpdateStatusText = "更新已下载；可立即重启安装，或稍后再重启。";
+            return;
+        }
+
+        IsUpdateBusy = true;
+        UpdateStatusText = "正在检查更新…";
+        try
+        {
+            _availableUpdate = await _updateService.CheckForUpdatesAsync();
+            Settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
+            _settingsService.Save(Settings);
+            RaisePropertyChanged(nameof(HasUpdateAvailable));
+            RaisePropertyChanged(nameof(AvailableVersionText));
+
+            if (_availableUpdate is null)
+            {
+                UpdateStatusText = $"已是最新版本（{CurrentVersionText}）";
+            }
+            else
+            {
+                UpdateStatusText = $"发现新版本 {AvailableVersionText}";
+                if (automatic && Settings.UpdateMode == UpdateMode.AutoDownload)
+                {
+                    await DownloadUpdateCoreAsync();
+                }
+                else if (automatic && Settings.UpdateMode == UpdateMode.Notify)
+                {
+                    _trayService.ShowUpdateNotification("发现 Codex Bar 更新", $"新版本 {AvailableVersionText} 可用，打开设置即可下载。");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText = $"检查更新失败：{ex.Message}";
+        }
+        finally
+        {
+            IsUpdateBusy = false;
+            RaiseUpdateCommandStates();
+        }
+    }
+
+    public async Task DownloadUpdateAsync()
+    {
+        if (!HasUpdateAvailable || IsUpdateBusy)
+        {
+            return;
+        }
+
+        IsUpdateBusy = true;
+        try
+        {
+            await DownloadUpdateCoreAsync();
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText = $"下载更新失败：{ex.Message}";
+        }
+        finally
+        {
+            IsUpdateBusy = false;
+            RaiseUpdateCommandStates();
+        }
+    }
+
+    public void ApplyDownloadedUpdate()
+    {
+        if (!HasPendingUpdate)
+        {
+            return;
+        }
+
+        SaveWindowPosition();
+        _updateService.ApplyAndRestart();
+        WpfApplication.Current.Shutdown();
+    }
+
+    public void OpenLatestReleasePage()
+    {
+        Process.Start(new ProcessStartInfo("https://github.com/NexxCaozhiwei/codex-bar/releases/latest")
+        {
+            UseShellExecute = true
+        });
+    }
+
     public void ToggleQuotaDisplayMode()
     {
         _quotaDisplayMode = _quotaDisplayMode == QuotaDisplayMode.Remaining
@@ -359,6 +526,7 @@ public sealed class MainViewModel : ObservableObject
         _settingsService.Save(Settings);
         _startupService.SetEnabled(Settings.StartWithWindows);
         ConfigureTimers();
+        ConfigureUpdateTimers();
         if (_mainWindow is not null)
         {
             ApplyWindowVisuals();
@@ -417,6 +585,74 @@ public sealed class MainViewModel : ObservableObject
         _activityTimer.Tick -= OnActivityTimerTick;
         _activityTimer.Tick += OnActivityTimerTick;
         _activityTimer.Start();
+    }
+
+    private void ConfigureUpdateTimers()
+    {
+        _updateStartupTimer.Stop();
+        _updateDailyTimer.Stop();
+        if (Settings.UpdateMode != UpdateMode.Manual && _updateService.IsManagedInstall)
+        {
+            _updateStartupTimer.Start();
+        }
+    }
+
+    private async void OnUpdateStartupTimerTick(object? sender, EventArgs e)
+    {
+        _updateStartupTimer.Stop();
+        if (Settings.UpdateMode == UpdateMode.Manual)
+        {
+            return;
+        }
+
+        if (Settings.LastUpdateCheckUtc is null || DateTimeOffset.UtcNow - Settings.LastUpdateCheckUtc >= TimeSpan.FromHours(24))
+        {
+            await CheckForUpdatesAsync(automatic: true);
+        }
+
+        _updateDailyTimer.Start();
+    }
+
+    private async void OnUpdateDailyTimerTick(object? sender, EventArgs e)
+    {
+        if (Settings.UpdateMode != UpdateMode.Manual)
+        {
+            await CheckForUpdatesAsync(automatic: true);
+        }
+    }
+
+    private async Task DownloadUpdateCoreAsync()
+    {
+        if (_availableUpdate is null)
+        {
+            return;
+        }
+
+        UpdateProgress = 0;
+        UpdateStatusText = $"正在下载 {AvailableVersionText}…";
+        await _updateService.DownloadUpdatesAsync(_availableUpdate, progress =>
+        {
+            WpfApplication.Current.Dispatcher.BeginInvoke(() => UpdateProgress = progress);
+        });
+        _availableUpdate = null;
+        RaisePropertyChanged(nameof(HasUpdateAvailable));
+        RaisePropertyChanged(nameof(AvailableVersionText));
+        RaisePropertyChanged(nameof(HasPendingUpdate));
+        ApplyUpdateCommand.RaiseCanExecuteChanged();
+        UpdateProgress = 100;
+        UpdateStatusText = "更新已下载；可立即重启安装，或稍后再重启。";
+        _trayService.ShowUpdateNotification("Codex Bar 更新已就绪", "重启应用即可完成更新。");
+    }
+
+    private string InitialUpdateStatus() => !_updateService.IsManagedInstall
+        ? "当前为旧版 ZIP 安装；首次使用自动更新前，请先下载支持更新的便携版并手动迁移。"
+        : _updateService.HasPendingRestart ? "更新已下载；重启应用即可完成更新。" : "尚未检查更新。";
+
+    private void RaiseUpdateCommandStates()
+    {
+        CheckUpdatesCommand.RaiseCanExecuteChanged();
+        DownloadUpdateCommand.RaiseCanExecuteChanged();
+        ApplyUpdateCommand.RaiseCanExecuteChanged();
     }
 
     private async void OnQuotaTimerTick(object? sender, EventArgs e) => await RefreshQuotaAsync();
